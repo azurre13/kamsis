@@ -55,16 +55,20 @@ const Base64Custom = {
                 throw new Error("❌ Base64 decode gagal - karakter tidak valid!");
             }
             
-            // Strict padding validation: padding hanya boleh di akhir, dan harus benar
-            if (i + 4 < str.length) {
-                // Ini bukan chunk terakhir, tidak boleh ada padding
+            // Validasi padding
+            let isLastChunk = (i + 4 >= str.length);
+            
+            if (!isLastChunk) {
+                // Bukan chunk terakhir - TIDAK BOLEH ADA PADDING
                 if (str[i + 2] === '=' || str[i + 3] === '=') {
-                    throw new Error("❌ Base64 decode gagal - padding harus di akhir!");
+                    throw new Error("❌ Base64 decode gagal - padding hanya boleh di akhir!");
                 }
             } else {
-                // Ini chunk terakhir, validasi padding urutan
-                if (str[i + 3] === '=' && str[i + 2] !== '=') {
-                    throw new Error("❌ Base64 decode gagal - padding urutan salah!");
+                // Chunk terakhir - cek pattern yang INVALID
+                // Valid: XXXX, XXX=, XX==
+                // Invalid: ??=X (padding di index 2 tapi tidak di index 3)
+                if (str[i + 2] === '=' && str[i + 3] !== '=') {
+                    throw new Error("❌ Base64 decode gagal - padding pattern salah!");
                 }
             }
             
