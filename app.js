@@ -39,6 +39,11 @@ const Base64Custom = {
     decode: function(str) {
         let bytes = [];
         
+        // Validasi length harus multiple of 4
+        if (str.length % 4 !== 0) {
+            throw new Error("❌ Base64 decode gagal - length tidak valid (harus multiple of 4)!");
+        }
+        
         // Process 4 characters at a time
         for (let i = 0; i < str.length; i += 4) {
             let c1 = this.alphabet.indexOf(str[i]);
@@ -48,6 +53,19 @@ const Base64Custom = {
             
             if (c1 === -1 || c2 === -1 || (str[i + 2] !== '=' && c3 === -1) || (str[i + 3] !== '=' && c4 === -1)) {
                 throw new Error("❌ Base64 decode gagal - karakter tidak valid!");
+            }
+            
+            // Strict padding validation: padding hanya boleh di akhir, dan harus benar
+            if (i + 4 < str.length) {
+                // Ini bukan chunk terakhir, tidak boleh ada padding
+                if (str[i + 2] === '=' || str[i + 3] === '=') {
+                    throw new Error("❌ Base64 decode gagal - padding harus di akhir!");
+                }
+            } else {
+                // Ini chunk terakhir, validasi padding urutan
+                if (str[i + 3] === '=' && str[i + 2] !== '=') {
+                    throw new Error("❌ Base64 decode gagal - padding urutan salah!");
+                }
             }
             
             // Reconstruct bytes
@@ -700,7 +718,7 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
         let encryptedKeyHex = encryptedKeyArray.map(n => {
             let hex = BigInt(n).toString(16);
             return hex.length === 1 ? '0' + hex : hex;
-        }).join('|');
+        }).join('-'); // SUDAH DIPERBAIKI: Menggunakan '-' agar tidak bentrok dengan pemisah metadata
         
         // Siapkan data untuk packing
         let ivHex = UI.toHex(cipher.iv);
@@ -873,8 +891,8 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
         } else if (metadata.length === 7) {
             ivHex = metadata[0];
             checksum = metadata[1];
-            // If third element looks like hex pairs separated by |, it's new format
-            if (metadata[2].includes('|') && metadata[2].match(/^[0-9a-fA-F|]+$/)) {
+            // If third element looks like hex pairs separated by -, it's new format
+            if (metadata[2].includes('-') && metadata[2].match(/^[0-9a-fA-F\-]+$/)) {
                 encryptedKeyHex = metadata[2];
                 rsaN = metadata[3];
                 isImageFlag = metadata[4] === 'true';
@@ -897,8 +915,8 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
         let e = 17n;
         let d = RSA.modInverse(e, phi);
         
-        // Parse encrypted key (split by | and convert from hex)
-        let encryptedKeyParts = encryptedKeyHex.split('|');
+        // Parse encrypted key (split by - and convert from hex)
+        let encryptedKeyParts = encryptedKeyHex.split('-'); // SUDAH DIPERBAIKI: Menggunakan '-'
         let encryptedKeyArray = encryptedKeyParts.map(hex => BigInt('0x' + hex).toString());
         
         // RSA decrypt the key
