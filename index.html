@@ -4,25 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hybrid Crypto (CBC + RSA)</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #eef2f5; color: #333; padding: 20px; display: flex; justify-content: center; }
-        .container { max-width: 650px; width: 100%; }
-        h1, h4 { text-align: center; margin-bottom: 5px; }
-        .card { background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; border-top: 4px solid #007bff; }
-        .card.decrypt { border-top-color: #28a745; }
-        label { font-weight: bold; font-size: 14px; display: block; margin-top: 10px; margin-bottom: 5px; }
-        input[type="text"], input[type="file"], textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-family: monospace; }
-        .radio-group { background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #ddd; }
-        .radio-group label { display: inline-block; margin-top: 0; margin-right: 15px; font-weight: normal; cursor: pointer; }
-        button { background: #007bff; color: white; border: none; padding: 12px; width: 100%; border-radius: 5px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 15px; transition: 0.2s; }
-        button.btn-success { background: #28a745; }
-        button:hover { opacity: 0.9; }
-        .output-box { margin-top: 15px; background: #e8f4fd; padding: 15px; border-radius: 5px; border: 1px dashed #007bff; display: none; }
-        .output-box.success { background: #e8fdf0; border-color: #28a745; }
-        #statusBox { text-align: center; padding: 10px; font-weight: bold; border-radius: 5px; margin-bottom: 20px; display: none; }
-        .error { background: #fde8e8; color: #d9534f; border: 1px solid #d9534f; }
-        .info { background: #e8f4fd; color: #007bff; border: 1px solid #007bff; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -37,7 +19,8 @@
         
         <div class="radio-group">
             <label><input type="radio" name="encMode" value="text" checked> 📝 Teks Manual</label>
-            <label><input type="radio" name="encMode" value="file"> 📁 Upload File (.txt / .bmp)</label>
+            <label><input type="radio" name="encMode" value="txt-file"> 📄 Upload File TXT</label>
+            <label><input type="radio" name="encMode" value="image"> 🖼️ Upload Gambar</label>
         </div>
 
         <div id="encTextContainer">
@@ -45,9 +28,16 @@
             <textarea id="encTextInput" rows="4" placeholder="Ketik pesan yang ingin dirahasiakan..."></textarea>
         </div>
 
-        <div id="encFileContainer" style="display: none;">
-            <label>Pilih File (TXT / BMP):</label>
-            <input type="file" id="encFileInput" accept=".txt,.bmp">
+        <div id="encTxtFileContainer" style="display: none;">
+            <label>Pilih File TXT:</label>
+            <input type="file" id="encTxtFileInput" accept=".txt">
+            <div class="file-info" id="encTxtFileInfo" style="display:none;"></div>
+        </div>
+
+        <div id="encImageContainer" style="display: none;">
+            <label>Pilih File Gambar (PNG, JPG, BMP, GIF):</label>
+            <input type="file" id="encImageInput" accept=".png,.jpg,.jpeg,.bmp,.gif">
+            <div class="file-info" id="encImageInfo" style="display:none;"></div>
         </div>
 
         <label>Kunci Simetrik (Wajib 8 Karakter):</label>
@@ -57,325 +47,59 @@
 
         <div id="encOutput" class="output-box">
             <label>Hasil Teks Sandi (Hexadecimal):</label>
-            <textarea id="encResultText" rows="4" readonly></textarea>
-            <p style="font-size: 12px; color: #555; margin-bottom: 0;">*File <b>Kunci_Akses.json</b> otomatis terunduh untuk dekripsi nanti.</p>
+            <p style="font-size: 11px; color: #666; margin: 5px 0; background: #fffacd; padding: 8px; border-radius: 3px;">
+                ✓ Download file hasil enkripsi menggunakan tombol di bawah
+            </p>
+            <textarea id="encResultText" rows="4" readonly style="max-height: 200px; overflow-y: auto;"></textarea>
+            <div class="hex-preview" id="hexPreview"></div>
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <button class="copy-btn" style="flex: 1;" onclick="copyToClipboard('encResultText')">📋 Copy Hex</button>
+                <button class="copy-btn" style="flex: 1;" onclick="downloadEncHex()">⬇️ Download Hex (.txt)</button>
+                <button class="copy-btn" style="flex: 1;" onclick="downloadEncJson()">⬇️ Download Key (JSON)</button>
+            </div>
         </div>
     </div>
 
     <div class="card decrypt">
         <h2 style="margin-top:0; color: #28a745;">Mode Dekripsi</h2>
 
-        <label>Teks Sandi (Hexadecimal):</label>
-        <textarea id="decTextInput" rows="4" placeholder="Paste teks hasil enkripsi di sini..."></textarea>
+        <div class="radio-group">
+            <label><input type="radio" name="decMode" value="paste" checked> 📝 Paste Hex Manual</label>
+            <label><input type="radio" name="decMode" value="file"> 📁 Upload File Hex (.txt)</label>
+        </div>
+
+        <div id="decPasteContainer">
+            <label>Teks Sandi (Hexadecimal):</label>
+            <textarea id="decTextInput" rows="4" placeholder="Paste teks hasil enkripsi di sini (bisa dengan spasi, dash, atau colon)..." style="max-height: 200px; overflow-y: auto;"></textarea>
+        </div>
+
+        <div id="decFileContainer" style="display: none;">
+            <label>Upload File Hex (Hasil_Enkripsi.txt):</label>
+            <input type="file" id="decHexFile" accept=".txt">
+            <div class="file-info" id="hexFileInfo" style="display:none;"></div>
+        </div>
 
         <label>File Kunci Akses (Kunci_Akses.json):</label>
         <input type="file" id="decAccessKeyFile" accept=".json">
+        
+        <label>Kunci Simetrik (8 Karakter - HARUS SAMA seperti saat enkripsi):</label>
+        <input type="text" id="decKeyInput" placeholder="Contoh: RAHASIA1" maxlength="8">
+        <p style="font-size: 11px; color: #d9534f; margin: 5px 0;">⚠️ Kunci HARUS tepat sama! Salah 1 karakter = error total, gak ada output!</p>
         
         <button id="btnDecrypt" class="btn-success">Buka Sandi</button>
 
         <div id="decOutput" class="output-box success">
             <label>Hasil Pesan Asli:</label>
-            <textarea id="decResultText" rows="4" readonly></textarea>
+            <textarea id="decResultText" rows="4" readonly style="max-height: 200px; overflow-y: auto;"></textarea>
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <button class="copy-btn" id="copyDecBtn" style="flex: 1;" onclick="copyToClipboard('decResultText')">📋 Copy</button>
+                <button class="copy-btn" id="downloadDecBtn" style="flex: 1; display: none;" onclick="downloadDecResult()">⬇️ Download</button>
+            </div>
         </div>
     </div>
 </div>
 
-<script>
-    /* =========================================
-       1. MESIN MATEMATIKA RSA (ASIMETRIK)
-       ========================================= */
-    const RSA = {
-        modPow: function(base, exp, mod) {
-            let res = 1n;
-            base = base % mod;
-            while (exp > 0n) {
-                if (exp % 2n === 1n) res = (res * base) % mod;
-                exp = exp / 2n;
-                base = (base * base) % mod;
-            }
-            return res;
-        },
-        modInverse: function(e, phi) {
-            let m0 = phi, t, q, x0 = 0n, x1 = 1n;
-            if (phi === 1n) return 0n;
-            while (e > 1n) {
-                q = e / phi; t = phi; phi = e % phi; e = t; t = x0; x0 = x1 - q * x0; x1 = t;
-            }
-            return x1 < 0n ? x1 + m0 : x1;
-        },
-        generateKeys: function() {
-            let p = 61n, q = 53n;
-            let n = p * q, phi = (p - 1n) * (q - 1n), e = 17n;
-            let d = this.modInverse(e, phi);
-            return { pub: { e: e, n: n }, priv: { d: d, n: n } };
-        },
-        encrypt: function(msgBytes, pubKey) {
-            let arr = [];
-            for (let i = 0; i < msgBytes.length; i++) {
-                arr.push(this.modPow(BigInt(msgBytes[i]), pubKey.e, pubKey.n).toString());
-            }
-            return arr;
-        },
-        decrypt: function(encArr, privKey) {
-            let bytes = new Uint8Array(encArr.length);
-            for (let i = 0; i < encArr.length; i++) {
-                bytes[i] = Number(this.modPow(BigInt(encArr[i]), privKey.d, privKey.n));
-            }
-            return bytes;
-        }
-    };
-
-    /* =========================================
-       2. MESIN BLOCK CIPHER (MODE CBC)
-       ========================================= */
-    class BlockCipher {
-        constructor(keyStr, ivBytes = null) {
-            this.key = new Uint8Array(8);
-            for (let i = 0; i < 8; i++) this.key[i] = keyStr.charCodeAt(i) || 0;
-            // Jika tidak ada IV (enkripsi baru), generate random. Jika ada (dekripsi), gunakan yang ada
-            if (ivBytes) {
-                this.iv = ivBytes;
-            } else {
-                this.iv = new Uint8Array(8);
-                for (let i = 0; i < 8; i++) this.iv[i] = Math.floor(Math.random() * 256);
-            }
-        }
-
-        sub(val) { return (val + 33) % 256; }
-        invSub(val) { return (val - 33 + 256) % 256; }
-
-        shift(block) {
-            let t = block[0];
-            for (let i = 0; i < 7; i++) block[i] = block[i + 1];
-            block[7] = t;
-            return block;
-        }
-        invShift(block) {
-            let t = block[7];
-            for (let i = 7; i > 0; i--) block[i] = block[i - 1];
-            block[0] = t;
-            return block;
-        }
-
-        encryptBlock(block) {
-            let out = new Uint8Array(8);
-            for (let i = 0; i < 8; i++) out[i] = this.sub(block[i] ^ this.key[i]);
-            return this.shift(out);
-        }
-
-        decryptBlock(block) {
-            let out = this.invShift(new Uint8Array(block));
-            for (let i = 0; i < 8; i++) out[i] = this.invSub(out[i]) ^ this.key[i];
-            return out;
-        }
-
-        process(data, isEncrypt) {
-            let pad = isEncrypt ? 8 - (data.length % 8) : 0;
-            let padded = new Uint8Array(data.length + pad);
-            padded.set(data);
-            if (isEncrypt) padded.fill(pad, data.length); 
-
-            let res = new Uint8Array(padded.length);
-            let prev = new Uint8Array(this.iv);
-
-            for (let i = 0; i < padded.length; i += 8) {
-                let curr = padded.slice(i, i + 8);
-                if (isEncrypt) {
-                    for (let j = 0; j < 8; j++) curr[j] ^= prev[j];
-                    let enc = this.encryptBlock(curr);
-                    res.set(enc, i);
-                    prev = enc;
-                } else {
-                    let dec = this.decryptBlock(curr);
-                    for (let j = 0; j < 8; j++) dec[j] ^= prev[j];
-                    res.set(dec, i);
-                    prev = curr;
-                }
-            }
-            return isEncrypt ? res : res.slice(0, res.length - res[res.length - 1]);
-        }
-    }
-
-    /* =========================================
-       3. LOGIKA UI & HANDLING EVENT (MURNI TANPA LIBRARY)
-       ========================================= */
-    const UI = {
-        showMsg: function(msg, isError = false) {
-            const box = document.getElementById('statusBox');
-            box.innerText = msg;
-            box.className = isError ? 'error' : 'info';
-            box.style.display = 'block';
-            setTimeout(() => box.style.display = 'none', 5000);
-        },
-        download: function(data, filename) {
-            let mimeType = "application/octet-stream";
-            let finalData = data;
-            
-            // Detect MIME type
-            if (filename.endsWith('.json')) {
-                mimeType = "application/json";
-                // Pastikan data adalah string JSON
-                if (typeof data !== 'string') {
-                    finalData = JSON.stringify(data);
-                }
-            }
-            else if (filename.endsWith('.txt')) mimeType = "text/plain";
-            else if (filename.endsWith('.bmp')) mimeType = "image/bmp";
-            
-            let blob = new Blob([finalData], { type: mimeType });
-            let url = URL.createObjectURL(blob);
-            let link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            
-            // Append to body, click, then remove
-            document.body.appendChild(link);
-            link.click();
-            
-            // Delay sebelum cleanup
-            setTimeout(() => {
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            }, 100);
-        },
-        // Konversi Array Byte ke Teks Hexadecimal MURNI (Pengganti Base64)
-        toHex: function(bytes) {
-            let hexStr = "";
-            for (let i = 0; i < bytes.length; i++) {
-                let hex = bytes[i].toString(16); // Konversi angka ke basis 16
-                hexStr += (hex.length === 1 ? "0" : "") + hex; // Tambah 0 di depan jika cuma 1 digit
-            }
-            return hexStr.toUpperCase();
-        },
-        // Konversi Teks Hexadecimal kembali ke Array Byte MURNI
-        fromHex: function(hexStr) {
-            hexStr = hexStr.replace(/\s/g, ''); // Hapus spasi jika ada
-            let bytes = new Uint8Array(hexStr.length / 2);
-            for (let i = 0; i < hexStr.length; i += 2) {
-                bytes[i / 2] = parseInt(hexStr.substr(i, 2), 16); // Konversi pasangan basis 16 ke angka
-            }
-            return bytes;
-        },
-        // Validasi apakah hasil dekripsi valid UTF-8 text
-        isValidText: function(bytes) {
-            try {
-                let text = new TextDecoder().decode(bytes);
-                // Hitung printable characters (minimal 50% - lebih relaxed)
-                let printable = 0;
-                for (let i = 0; i < text.length; i++) {
-                    let code = text.charCodeAt(i);
-                    if ((code >= 32 && code <= 126) || code === 9 || code === 10 || code === 13) {
-                        printable++;
-                    }
-                }
-                return (printable / text.length) > 0.5; // Minimal 50% printable
-            } catch (e) {
-                return false;
-            }
-        }
-    };
-
-    // Toggle UI Input
-    document.querySelectorAll('input[name="encMode"]').forEach(r => r.addEventListener('change', e => {
-        document.getElementById('encTextContainer').style.display = e.target.value === 'text' ? 'block' : 'none';
-        document.getElementById('encFileContainer').style.display = e.target.value === 'file' ? 'block' : 'none';
-    }));
-
-    // --- EKSEKUSI ENKRIPSI ---
-    document.getElementById('btnEncrypt').addEventListener('click', async () => {
-        try {
-            let mode = document.querySelector('input[name="encMode"]:checked').value;
-            let keyStr = document.getElementById('encKeyInput').value;
-            if (keyStr.length !== 8) throw new Error("Kunci Simetrik wajib 8 karakter!");
-
-            let cipher = new BlockCipher(keyStr);  // Generate IV random otomatis
-            let keysRSA = RSA.generateKeys();
-            let encKeyRSA = RSA.encrypt(new TextEncoder().encode(keyStr), keysRSA.pub);
-
-            // GABUNGKAN KUNCI + IV JADI 1 FILE BIAR GAK KENA BLOK BROWSER
-            let accessKeyFile = JSON.stringify({
-                encryptedKey: encKeyRSA,
-                privateKey: { d: keysRSA.priv.d.toString(), n: keysRSA.priv.n.toString() },
-                iv: Array.from(cipher.iv)
-            });
-
-            if (mode === 'text') {
-                let txt = document.getElementById('encTextInput').value;
-                if (!txt) throw new Error("Pesan tidak boleh kosong!");
-                
-                let encBytes = cipher.process(new TextEncoder().encode(txt), true);
-                
-                document.getElementById('encOutput').style.display = 'block';
-                document.getElementById('encResultText').value = UI.toHex(encBytes);
-                
-                // Download JSON dengan proper delay
-                UI.download(accessKeyFile, "Kunci_Akses.json");
-                UI.showMsg("Enkripsi Teks Sukses!");
-
-            } else {
-                let file = document.getElementById('encFileInput').files[0];
-                if (!file) throw new Error("Pilih file terlebih dahulu!");
-
-                let buffer = await file.arrayBuffer();
-                let bytes = new Uint8Array(buffer);
-                let isBmp = file.name.toLowerCase().endsWith('.bmp');
-                
-                let header = new Uint8Array(), body = bytes;
-                if (isBmp) {
-                    let offset = bytes[10] | (bytes[11]<<8) | (bytes[12]<<16) | (bytes[13]<<24);
-                    header = bytes.slice(0, offset);
-                    body = bytes.slice(offset);
-                }
-
-                let encBody = cipher.process(body, true);
-                let finalFile = new Uint8Array(header.length + encBody.length);
-                finalFile.set(header); finalFile.set(encBody, header.length);
-
-                // TAMPILKAN HEX DI TEXTAREA (SEPERTI TEXT MODE)
-                document.getElementById('encOutput').style.display = 'block';
-                document.getElementById('encResultText').value = UI.toHex(finalFile);
-                
-                // Download JSON saja
-                UI.download(accessKeyFile, "Kunci_Akses.json");
-                
-                UI.showMsg("Enkripsi File Sukses!");
-            }
-        } catch (err) { UI.showMsg(err.message, true); }
-    });
-
-    // --- EKSEKUSI DEKRIPSI ---
-    document.getElementById('btnDecrypt').addEventListener('click', async () => {
-        try {
-            let fileAccessKey = document.getElementById('decAccessKeyFile').files[0];
-
-            if (!fileAccessKey) throw new Error("Harap upload file Kunci_Akses.json!");
-
-            // EKSTRAK 1 FILE KUNCI + IV
-            let accessData = JSON.parse(await fileAccessKey.text());
-            let privKey = { d: BigInt(accessData.privateKey.d), n: BigInt(accessData.privateKey.n) };
-            
-            let decKeyBytes = RSA.decrypt(accessData.encryptedKey, privKey);
-            let keyStr = new TextDecoder().decode(decKeyBytes);
-            let ivBytes = new Uint8Array(accessData.iv || [10, 20, 30, 40, 50, 60, 70, 80]);
-            let cipher = new BlockCipher(keyStr, ivBytes);
-
-            let b64 = document.getElementById('decTextInput').value;
-            if (!b64) throw new Error("Teks sandi kosong!");
-            
-            let decBytes = cipher.process(UI.fromHex(b64), false);
-            
-            // VALIDASI apakah dekripsi berhasil - relax ke 50%
-            if (!UI.isValidText(decBytes)) {
-                throw new Error("❌ Kunci atau Teks Sandi tidak sesuai! Hasil dekripsi tidak valid.");
-            }
-            
-            document.getElementById('decOutput').style.display = 'block';
-            document.getElementById('decResultText').value = new TextDecoder().decode(decBytes);
-            UI.showMsg("✅ Dekripsi Teks Sukses!");
-
-        } catch (err) { UI.showMsg("Gagal: " + err.message, true); }
-    });
-</script>
+<script src="app.js"></script>
 
 </body>
 </html>

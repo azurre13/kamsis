@@ -1,0 +1,163 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #eef2f5;
+    color: #333;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.container {
+    max-width: 650px;
+    width: 100%;
+}
+
+h1, h4 {
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+    border-top: 4px solid #007bff;
+}
+
+.card.decrypt {
+    border-top-color: #28a745;
+}
+
+label {
+    font-weight: bold;
+    font-size: 14px;
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 5px;
+}
+
+input[type="text"], input[type="file"], textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+    font-family: monospace;
+}
+
+.radio-group {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+}
+
+.radio-group label {
+    display: inline-block;
+    margin-top: 0;
+    margin-right: 15px;
+    font-weight: normal;
+    cursor: pointer;
+}
+
+button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 12px;
+    width: 100%;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    margin-top: 15px;
+    transition: 0.2s;
+}
+
+button.btn-success {
+    background: #28a745;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.output-box {
+    margin-top: 15px;
+    background: #e8f4fd;
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px dashed #007bff;
+    display: none;
+}
+
+.output-box.success {
+    background: #e8fdf0;
+    border-color: #28a745;
+}
+
+#statusBox {
+    text-align: center;
+    padding: 10px;
+    font-weight: bold;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    display: none;
+}
+
+.error {
+    background: #fde8e8;
+    color: #d9534f;
+    border: 1px solid #d9534f;
+}
+
+.info {
+    background: #e8f4fd;
+    color: #007bff;
+    border: 1px solid #007bff;
+}
+
+.file-info {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+    padding: 8px;
+    background: #f9f9f9;
+    border-radius: 3px;
+}
+
+.copy-btn {
+    background: #6c757d;
+    font-size: 12px;
+    padding: 6px;
+    width: auto;
+    margin-left: 5px;
+}
+
+.hex-preview {
+    font-size: 11px;
+    color: #999;
+    margin-top: 5px;
+}
+
+.error-notification {
+    color: #d9534f;
+    font-weight: bold;
+    font-size: 14px;
+    text-align: center;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    padding: 15px 5px;
+}
+
+.success-notification {
+    color: #28a745;
+    font-weight: bold;
+    font-size: 13px;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
