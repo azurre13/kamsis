@@ -1,25 +1,86 @@
-// GLOBAL VARIABLES untuk download data
-let encryptionData = { hexResult: null, jsonData: null };
+// GLOBAL VARIABLES
+let encryptionData = { packResult: null };
 let decryptionData = { resultBytes: null, format: null, isImage: false };
 
-/* 
+/* =====================================================
+   CUSTOM BASE64 ENCODER/DECODER (FROM SCRATCH - NO LIBRARY)
+   ===================================================== */
+const Base64Custom = {
+    alphabet: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/',
+    
+    encode: function(bytes) {
+        let result = '';
+        
+        // Process setiap 3 bytes jadi 4 Base64 chars
+        for (let i = 0; i < bytes.length; i += 3) {
+            let b1 = bytes[i];
+            let b2 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+            let b3 = i + 2 < bytes.length ? bytes[i + 2] : 0;
+            
+            let has2 = i + 1 < bytes.length;
+            let has3 = i + 2 < bytes.length;
+            
+            // Extract 6-bit chunks
+            let c1 = (b1 >> 2) & 0x3F;
+            let c2 = ((b1 & 0x03) << 4) | ((b2 >> 4) & 0x0F);
+            let c3 = ((b2 & 0x0F) << 2) | ((b3 >> 6) & 0x03);
+            let c4 = b3 & 0x3F;
+            
+            // Encode to Base64
+            result += this.alphabet[c1];
+            result += this.alphabet[c2];
+            result += has2 ? this.alphabet[c3] : '=';
+            result += has3 ? this.alphabet[c4] : '=';
+        }
+        
+        return result;
+    },
+    
+    decode: function(str) {
+        let bytes = [];
+        
+        // Process 4 characters at a time
+        for (let i = 0; i < str.length; i += 4) {
+            let c1 = this.alphabet.indexOf(str[i]);
+            let c2 = this.alphabet.indexOf(str[i + 1]);
+            let c3 = str[i + 2] === '=' ? 0 : this.alphabet.indexOf(str[i + 2]);
+            let c4 = str[i + 3] === '=' ? 0 : this.alphabet.indexOf(str[i + 3]);
+            
+            if (c1 === -1 || c2 === -1 || (str[i + 2] !== '=' && c3 === -1) || (str[i + 3] !== '=' && c4 === -1)) {
+                throw new Error("❌ Base64 decode gagal - karakter tidak valid!");
+            }
+            
+            // Reconstruct bytes
+            let b1 = (c1 << 2) | (c2 >> 4);
+            let b2 = ((c2 & 0x0F) << 4) | (c3 >> 2);
+            let b3 = ((c3 & 0x03) << 6) | c4;
+            
+            bytes.push(b1);
+            if (str[i + 2] !== '=') bytes.push(b2);
+            if (str[i + 3] !== '=') bytes.push(b3);
+        }
+        
+        return new Uint8Array(bytes);
+    }
+};
+
+/* =====================================================
    0. CHECKSUM FUNCTION (INTEGRITY CHECK)
-    */
+   ===================================================== */
 const Checksum = {
-    // Simple hash function untuk integrity check
     compute: function(bytes) {
         let hash = 5381;
         for (let i = 0; i < bytes.length; i++) {
             hash = ((hash << 5) + hash) + bytes[i];
-            hash = hash & hash; // Convert to 32-bit integer
+            hash = hash & hash;
         }
-        return Math.abs(hash).toString(16); // Return as hex string
+        return Math.abs(hash).toString(16);
     }
 };
 
-/* 
-   1. RSA (ASIMETRIK)
-   */
+/* =====================================================
+   1. RSA (ASYMMETRIC)
+   ===================================================== */
 const RSA = {
     modPow: function(base, exp, mod) {
         let res = 1n;
@@ -61,18 +122,18 @@ const RSA = {
     }
 };
 
-/* 
-   2.  BLOCK CIPHER (MODE CBC)
-    */
+/* =====================================================
+   2. BLOCK CIPHER (MODE CBC)
+   ===================================================== */
 class BlockCipher {
     constructor(keyStr, ivBytes = null) {
         this.key = new Uint8Array(8);
-        for (let i = 0; i < 8; i++) this.key[i] = keyStr.charCodeAt(i) || 0;
+        for (let i = 0; i < 8; i++) this.key[i] = keyStr.charCodeAt(i);
         if (ivBytes) {
             this.iv = ivBytes;
         } else {
             this.iv = new Uint8Array(8);
-            for (let i = 0; i < 8; i++) this.iv[i] = Math.floor(Math.random() * 256);
+            for (let i = 0; i < 8; i++) this.iv[i] = (i + 1) * 10 + Math.floor(Math.random() * 20);
         }
     }
 
@@ -108,7 +169,7 @@ class BlockCipher {
         let pad = isEncrypt ? 8 - (data.length % 8) : 0;
         let padded = new Uint8Array(data.length + pad);
         padded.set(data);
-        if (isEncrypt) padded.fill(pad, data.length); 
+        if (isEncrypt) padded.fill(pad, data.length);
 
         let res = new Uint8Array(padded.length);
         let prev = new Uint8Array(this.iv);
@@ -131,12 +192,11 @@ class BlockCipher {
     }
 }
 
-/* 
-   3. LOGIKA UI & HANDLING EVENT (TANPA LIBRARY)
-    */
+/* =====================================================
+   3. UI HELPERS & CONVERSIONS
+   ===================================================== */
 const UI = {
     showMsg: function(msg, isError = false, context = null) {
-        // Determine context (enc or dec) jika tidak specified
         let outputBox, textareaId;
         if (!context) {
             let activeElement = document.activeElement;
@@ -149,33 +209,26 @@ const UI = {
         textareaId = context === 'dec' ? 'decResultText' : 'encResultText';
         
         if (isError) {
-            // ERROR: Jangan hapus struktur DOM output, cukup tampilkan notif merah
             let oldSuccess = outputBox.querySelector('.success-notification');
             if (oldSuccess) oldSuccess.remove();
-
             let oldError = outputBox.querySelector('.error-notification');
             if (oldError) oldError.remove();
-
+            
             let errDiv = document.createElement('div');
             errDiv.className = 'error-notification';
             errDiv.textContent = msg;
             outputBox.insertBefore(errDiv, outputBox.firstChild);
             outputBox.style.display = 'block';
             
-            // Auto-scroll ke output box
             setTimeout(() => {
                 outputBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 100);
         } else {
-            // SUCCESS: Prepend notif hijau di atas textarea (struktur existing dipertahankan)
             let textarea = document.getElementById(textareaId);
             if (textarea) {
-                // Prepend success message sebelum textarea
                 let textareaParent = textarea.parentElement;
                 let existingNotif = textareaParent.querySelector('.success-notification');
-                if (existingNotif) {
-                    existingNotif.remove();  // Remove old notif
-                }
+                if (existingNotif) existingNotif.remove();
                 let notifDiv = document.createElement('div');
                 notifDiv.className = 'success-notification';
                 notifDiv.textContent = msg;
@@ -183,40 +236,12 @@ const UI = {
             }
             outputBox.style.display = 'block';
             
-            // Auto-scroll ke output box
             setTimeout(() => {
                 outputBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 100);
         }
     },
-    download: function(data, filename) {
-        let mimeType = "application/octet-stream";
-        let finalData = data;
-        
-        if (filename.endsWith('.json')) {
-            mimeType = "application/json";
-            if (typeof data !== 'string') {
-                finalData = JSON.stringify(data);
-            }
-        }
-        else if (filename.endsWith('.txt')) mimeType = "text/plain";
-        else if (filename.endsWith('.bmp')) mimeType = "image/bmp";
-        
-        let blob = new Blob([finalData], { type: mimeType });
-        let url = URL.createObjectURL(blob);
-        let link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        
-        document.body.appendChild(link);
-        link.click();
-        
-        setTimeout(() => {
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        }, 100);
-    },
-    // FIX #5: Support more hex separators (spasi, dash, colon)
+    
     toHex: function(bytes) {
         let hexStr = "";
         for (let i = 0; i < bytes.length; i++) {
@@ -225,28 +250,24 @@ const UI = {
         }
         return hexStr.toUpperCase();
     },
+    
     fromHex: function(hexStr) {
-        // Validasi dan clean hex string
         if (!hexStr || hexStr.trim().length === 0) {
-            throw new Error("Hex string kosong! Paste hasil enkripsi atau upload file hex.");
+            throw new Error("Hex string kosong!");
         }
         
-        // Remove whitespace, dash, colon
         let cleaned = hexStr.replace(/[\s\-:]/g, '').toUpperCase();
         
-        // Check karakter valid
         if (!/^[0-9A-F]*$/.test(cleaned)) {
             let invalidChars = cleaned.replace(/[0-9A-F]/g, '').split('');
             let unique = [...new Set(invalidChars)];
-            throw new Error(`❌ Hex berisi karakter tidak valid: ${unique.join(', ')}\n\nHex hanya boleh mengandung 0-9 dan A-F.`);
+            throw new Error(`❌ Hex berisi karakter tidak valid: ${unique.join(', ')}`);
         }
         
-        // Check panjang genap
         if (cleaned.length % 2 !== 0) {
-            throw new Error(`❌ Panjang hex GANJIL (${cleaned.length} chars)!\n\nHex harus panjang GENAP (setiap 2 karakter = 1 byte).`);
+            throw new Error(`❌ Panjang hex GANJIL (${cleaned.length} chars)!`);
         }
         
-        // Parse ke bytes
         let bytes = new Uint8Array(cleaned.length / 2);
         for (let i = 0; i < cleaned.length; i += 2) {
             let chunk = cleaned.substr(i, 2);
@@ -258,35 +279,7 @@ const UI = {
         }
         return bytes;
     },
-    isValidText: function(bytes) {
-        try {
-            let text = new TextDecoder().decode(bytes);
-            if (text.length === 0) return false;
-            
-            let printable = 0, suspicious = 0;
-            for (let i = 0; i < text.length; i++) {
-                let code = text.charCodeAt(i);
-                // Valid: printable ASCII (32-126) + whitespace (9,10,13)
-                if ((code >= 32 && code <= 126) || code === 9 || code === 10 || code === 13) {
-                    printable++;
-                }
-                // Suspicious: control chars (0-8, 11-12, 14-31) - indicator dekripsi salah
-                else if (code < 32) {
-                    suspicious++;
-                }
-            }
-            
-            // KETAT: Perlu > 85% printable DAN minimal ada sedikit kontrol chars (tidak boleh banyak)
-            let printableRatio = printable / text.length;
-            let suspiciousRatio = suspicious / text.length;
-            
-            // Reject jika: printable < 85% ATAU suspicious > 10%
-            return printableRatio > 0.85 && suspiciousRatio < 0.1;
-        } catch (e) {
-            return false;
-        }
-    },
-    // FIX #4: Validate BMP magic bytes
+    
     getImageFormat: function(filename) {
         let ext = filename.toLowerCase();
         if (ext.endsWith('.bmp')) return 'bmp';
@@ -295,48 +288,51 @@ const UI = {
         if (ext.endsWith('.gif')) return 'gif';
         return null;
     },
+
+    getFileFormat: function(filename) {
+        let ext = filename.toLowerCase();
+        if (ext.endsWith('.txt')) return 'txt';
+        return null;
+    },
+    
     validateImageFile: function(buffer, format) {
         let view = new Uint8Array(buffer);
         if (format === 'bmp') {
             if (view[0] !== 0x42 || view[1] !== 0x4D) {
-                throw new Error("File BMP tidak valid! Magic bytes tidak sesuai.");
+                throw new Error("File BMP tidak valid!");
             }
         } else if (format === 'png') {
             if (!(view[0] === 0x89 && view[1] === 0x50 && view[2] === 0x4E && view[3] === 0x47)) {
-                throw new Error("File PNG tidak valid! Magic bytes tidak sesuai.");
+                throw new Error("File PNG tidak valid!");
             }
         } else if (format === 'jpg') {
             if (!(view[0] === 0xFF && view[1] === 0xD8)) {
-                throw new Error("File JPG/JPEG tidak valid! Magic bytes tidak sesuai.");
+                throw new Error("File JPG tidak valid!");
             }
         } else if (format === 'gif') {
             if (!(view[0] === 0x47 && view[1] === 0x49 && view[2] === 0x46)) {
-                throw new Error("File GIF tidak valid! Magic bytes tidak sesuai.");
+                throw new Error("File GIF tidak valid!");
             }
         }
         return true;
     },
+    
     extractImageHeader: function(bytes, format) {
         let header = new Uint8Array();
         let body = bytes;
         if (format === 'bmp') {
-            // BMP: Offset di bytes 10-13 (little endian)
             let offset = bytes[10] | (bytes[11]<<8) | (bytes[12]<<16) | (bytes[13]<<24);
             header = bytes.slice(0, offset);
             body = bytes.slice(offset);
         } else if (format === 'png') {
-            // PNG: Signature 8 bytes + IHDR chunk (25 bytes minimal) = 33 bytes
-            // IHDR = 4 (length) + 4 (type 'IHDR') + 13 (data) + 4 (CRC) = 25 bytes
             let headerSize = 33;
             if (bytes.length < headerSize) {
-                throw new Error("File PNG terlalu kecil atau corrupt!");
+                throw new Error("File PNG terlalu kecil!");
             }
             header = bytes.slice(0, headerSize);
             body = bytes.slice(headerSize);
         } else if (format === 'jpg') {
-            // JPG: Parse segments sampai start of actual image data
-            // SOI (D8) + APP0/APP1/... + DQT + DHT + SOF + SOS
-            let pos = 2;  // Skip SOI marker (FFD8)
+            let pos = 2;
             let headerSize = 2;
             while (pos < bytes.length - 1) {
                 if (bytes[pos] !== 0xFF) {
@@ -344,35 +340,28 @@ const UI = {
                     break;
                 }
                 let marker = bytes[pos + 1];
-                
                 if (marker === 0xDA) {
-                    // SOS (Start of Scan) - dari sini mulai actual image data
                     let sosLen = (bytes[pos + 2] << 8) | bytes[pos + 3];
                     headerSize = pos + 2 + sosLen;
                     break;
                 } else if (marker === 0xD9) {
-                    // EOI - end of file
                     headerSize = bytes.length;
                     break;
                 } else if (marker === 0x00 || (marker >= 0xD0 && marker <= 0xD9)) {
-                    // Markers tanpa length field (padding, RSTn)
                     pos += 2;
                 } else {
-                    // Markers dengan length field
                     let len = (bytes[pos + 2] << 8) | bytes[pos + 3];
                     pos += 2 + len;
                 }
             }
-            // Fallback jika loop tidak set headerSize
             if (headerSize === 2 && pos > 2) headerSize = Math.min(pos, bytes.length);
             if (headerSize < 2) headerSize = Math.min(100, bytes.length);
             header = bytes.slice(0, headerSize);
             body = bytes.slice(headerSize);
         } else if (format === 'gif') {
-            // GIF: Header 6 bytes + screen descriptor 7 bytes + optional color table
             let minHeader = 13;
             if (bytes.length < minHeader) {
-                throw new Error("File GIF terlalu kecil atau corrupt!");
+                throw new Error("File GIF terlalu kecil!");
             }
             let flags = bytes[10];
             let hasGCT = (flags & 0x80) !== 0;
@@ -385,36 +374,19 @@ const UI = {
     }
 };
 
-// FIX #2: Handle large hex display
-function displayHexResult(hexStr) {
-    let previewDiv = document.getElementById('hexPreview');
-    previewDiv.innerHTML = `✓ Total ${hexStr.length} characters (${Math.ceil(hexStr.length / 2)} bytes) - Semua hex tersimpan di Hasil_Enkripsi.txt`;
-    return hexStr;  // Tampilkan semua hex di textarea (dengan scroll)
-}
-
-// Helper: Show success output dengan result content
-function showSuccessOutput(context, successMsg, htmlContent) {
-    let outputBox = document.getElementById(context === 'dec' ? 'decOutput' : 'encOutput');
-    let successNotif = `<div class="success-notification">${successMsg}</div>`;
-    outputBox.innerHTML = successNotif + htmlContent;
-    outputBox.style.display = 'block';
-}
-
-// Copy to clipboard function
 function copyToClipboard(elementId) {
     let element = document.getElementById(elementId);
     element.select();
     document.execCommand('copy');
-    alert('Disalin ke clipboard!');
+    UI.showMsg('✓ Copied to clipboard!', false);
 }
 
-// Download functions untuk enkripsi
-function downloadEncHex() {
-    if (!encryptionData.hexResult) {
-        alert('⚠️ Tidak ada data hex! Lakukan enkripsi terlebih dahulu.');
+function downloadEncResult() {
+    if (!encryptionData.packResult) {
+        alert('⚠️ Tidak ada data!');
         return;
     }
-    let blob = new Blob([encryptionData.hexResult], { type: 'text/plain' });
+    let blob = new Blob([encryptionData.packResult], { type: 'text/plain' });
     let url = URL.createObjectURL(blob);
     let a = document.createElement('a');
     a.href = url;
@@ -423,21 +395,6 @@ function downloadEncHex() {
     URL.revokeObjectURL(url);
 }
 
-function downloadEncJson() {
-    if (!encryptionData.jsonData) {
-        alert('⚠️ Tidak ada data kunci! Lakukan enkripsi terlebih dahulu.');
-        return;
-    }
-    let blob = new Blob([encryptionData.jsonData], { type: 'application/json' });
-    let url = URL.createObjectURL(blob);
-    let a = document.createElement('a');
-    a.href = url;
-    a.download = 'Kunci_Akses.json';
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-// Download function untuk dekripsi
 function downloadDecResult() {
     if (!decryptionData.resultBytes) {
         alert('⚠️ Tidak ada data hasil dekripsi!');
@@ -446,7 +403,6 @@ function downloadDecResult() {
     let fileName = 'Hasil_Dekripsi';
     let mimeType = 'text/plain';
     if (decryptionData.isImage) {
-        // Proper MIME types untuk images
         let mimeTypes = {
             bmp: 'image/bmp',
             png: 'image/png',
@@ -467,50 +423,254 @@ function downloadDecResult() {
     URL.revokeObjectURL(url);
 }
 
-// Toggle UI Input untuk 3 mode enkripsi (text + txt file + image)
-document.querySelectorAll('input[name="encMode"]').forEach(r => r.addEventListener('change', e => {
-    document.getElementById('encTextContainer').style.display = e.target.value === 'text' ? 'block' : 'none';
-    document.getElementById('encTxtFileContainer').style.display = e.target.value === 'txt-file' ? 'block' : 'none';
-    document.getElementById('encImageContainer').style.display = e.target.value === 'image' ? 'block' : 'none';
-}));
+/* ========================================
+   TAB NAVIGATION & MODE SWITCHING
+   ======================================== */
 
-// Toggle Dekripsi Input (Paste vs File)
-document.querySelectorAll('input[name="decMode"]').forEach(r => r.addEventListener('change', e => {
-    document.getElementById('decPasteContainer').style.display = e.target.value === 'paste' ? 'block' : 'none';
-    document.getElementById('decFileContainer').style.display = e.target.value === 'file' ? 'block' : 'none';
-}));
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        let tabName = btn.getAttribute('data-tab');
+        
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        // Update tab content
+        document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+        document.getElementById(tabName + 'Section').classList.add('active');
+    });
+});
 
-// Show file info for txt file
-document.getElementById('encTxtFileInput').addEventListener('change', e => {
-    let file = e.target.files[0];
-    if (file) {
-        let info = `✓ File: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
-        document.getElementById('encTxtFileInfo').innerHTML = info;
-        document.getElementById('encTxtFileInfo').style.display = 'block';
+// Encryption Mode Selection
+document.querySelectorAll('#encryptSection .seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        let mode = btn.getAttribute('data-mode');
+        
+        // Update button state
+        document.querySelectorAll('#encryptSection .seg-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        // Toggle input sections
+        document.getElementById('encTextMode').style.display = mode === 'text' ? 'block' : 'none';
+        document.getElementById('encTxtFileMode').style.display = mode === 'txt-file' ? 'block' : 'none';
+        document.getElementById('encImageMode').style.display = mode === 'image' ? 'block' : 'none';
+    });
+});
+
+// Decryption Mode Selection
+document.querySelectorAll('#decryptSection .seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        let mode = btn.getAttribute('data-dec-mode');
+        
+        // Update button state
+        document.querySelectorAll('#decryptSection .seg-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        // Toggle input sections
+        document.getElementById('decPasteMode').style.display = mode === 'paste' ? 'block' : 'none';
+        document.getElementById('decFileMode').style.display = mode === 'file' ? 'block' : 'none';
+    });
+});
+
+/* ========================================
+   BYTE COUNTERS FOR TEXTAREA/INPUT
+   ======================================== */
+
+document.getElementById('encTextInput').addEventListener('input', e => {
+    let bytes = new TextEncoder().encode(e.target.value).length;
+    document.getElementById('encTextByteCount').textContent = bytes;
+});
+
+document.getElementById('encKeyInput').addEventListener('input', e => {
+    document.getElementById('encKeyCount').textContent = e.target.value.length;
+});
+
+document.getElementById('decTextInput').addEventListener('input', e => {
+    let bytes = new TextEncoder().encode(e.target.value).length;
+    document.getElementById('decTextByteCount').textContent = bytes;
+});
+
+document.getElementById('decKeyInput').addEventListener('input', e => {
+    document.getElementById('decKeyCount').textContent = e.target.value.length;
+});
+
+/* ========================================
+   KEY VISIBILITY TOGGLE (EYE ICON)
+   ======================================== */
+
+// Encryption Key Toggle
+document.getElementById('encEyeToggle').addEventListener('click', e => {
+    e.preventDefault();
+    let input = document.getElementById('encKeyInput');
+    let btn = document.getElementById('encEyeToggle');
+    let eyeOpen = btn.querySelector('.eye-open');
+    let eyeClosed = btn.querySelector('.eye-closed');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        eyeOpen.style.display = 'none';
+        eyeClosed.style.display = 'block';
+    } else {
+        input.type = 'password';
+        eyeOpen.style.display = 'block';
+        eyeClosed.style.display = 'none';
     }
 });
 
-// Show file info for image file
+// Decryption Key Toggle
+document.getElementById('decEyeToggle').addEventListener('click', e => {
+    e.preventDefault();
+    let input = document.getElementById('decKeyInput');
+    let btn = document.getElementById('decEyeToggle');
+    let eyeOpen = btn.querySelector('.eye-open');
+    let eyeClosed = btn.querySelector('.eye-closed');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        eyeOpen.style.display = 'none';
+        eyeClosed.style.display = 'block';
+    } else {
+        input.type = 'password';
+        eyeOpen.style.display = 'block';
+        eyeClosed.style.display = 'none';
+    }
+});
+
+/* ========================================
+   DRAG & DROP SUPPORT
+   ======================================== */
+
+function setupDragDrop(dragAreaId, inputId, fileInfoId) {
+    let dragArea = document.getElementById(dragAreaId);
+    let fileInput = document.getElementById(inputId);
+    let fileInfo = document.getElementById(fileInfoId);
+
+    if (!dragArea) return;
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dragArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dragArea.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dragArea.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) {
+        dragArea.classList.add('drag-over');
+    }
+
+    function unhighlight(e) {
+        dragArea.classList.remove('drag-over');
+    }
+
+    dragArea.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        let dt = e.dataTransfer;
+        let files = dt.files;
+        fileInput.files = files;
+        
+        // Trigger change event
+        let event = new Event('change', { bubbles: true });
+        fileInput.dispatchEvent(event);
+    }
+
+    dragArea.addEventListener('click', () => fileInput.click());
+}
+
+// Setup drag & drop areas
+setupDragDrop('encTxtDragArea', 'encTxtFileInput', 'encTxtFileInfo');
+setupDragDrop('encImageDragArea', 'encImageInput', 'encImageInfo');
+setupDragDrop('decFileDragArea', 'decHexFile', 'decFileInfo');
+
+/* ========================================
+   FILE INPUT HANDLERS
+   ======================================== */
+
+document.getElementById('encTxtFileInput').addEventListener('change', e => {
+    let file = e.target.files[0];
+    if (file) {
+        let sizeKB = (file.size / 1024).toFixed(2);
+        let info = `✓ ${file.name} · ${sizeKB} KB`;
+        let clearBtn = `<button class="file-clear-btn" id="clearEncTxtFileBtn">Hapus</button>`;
+        document.getElementById('encTxtFileInfo').innerHTML = `<div class="file-info-content">${info}</div>${clearBtn}`;
+        document.getElementById('encTxtFileInfo').style.display = 'flex';
+        
+        document.getElementById('clearEncTxtFileBtn').addEventListener('click', () => {
+            document.getElementById('encTxtFileInput').value = '';
+            document.getElementById('encTxtFileInfo').innerHTML = '';
+            document.getElementById('encTxtFileInfo').style.display = 'none';
+        });
+    }
+});
+
 document.getElementById('encImageInput').addEventListener('change', e => {
     let file = e.target.files[0];
     if (file) {
         let imageFormat = UI.getImageFormat(file.name);
         if (!imageFormat) {
-            alert('Format gambar tidak didukung! Gunakan PNG, JPG, BMP, atau GIF.');
+            UI.showMsg("Format gambar tidak didukung!", true, 'enc');
             e.target.value = '';
             return;
         }
-        let info = `✓ File: ${file.name} (${(file.size / 1024).toFixed(2)} KB) - Format: ${imageFormat.toUpperCase()}`;
-        document.getElementById('encImageInfo').innerHTML = info;
-        document.getElementById('encImageInfo').style.display = 'block';
+        let sizeKB = (file.size / 1024).toFixed(2);
+        
+        // Read file and show preview
+        let reader = new FileReader();
+        reader.onload = function(evt) {
+            let info = `✓ ${file.name} · ${sizeKB} KB · ${imageFormat.toUpperCase()}`;
+            let preview = `<div class="file-preview"><img src="${evt.target.result}" class="file-preview-image" alt="Preview"></div>`;
+            let clearBtn = `<button class="file-clear-btn" id="clearEncImageBtn">Hapus</button>`;
+            document.getElementById('encImageInfo').innerHTML = `<div class="file-info-content">${info}${preview}</div>${clearBtn}`;
+            document.getElementById('encImageInfo').style.display = 'flex';
+            
+            document.getElementById('clearEncImageBtn').addEventListener('click', () => {
+                document.getElementById('encImageInput').value = '';
+                document.getElementById('encImageInfo').innerHTML = '';
+                document.getElementById('encImageInfo').style.display = 'none';
+            });
+        };
+        reader.readAsDataURL(file);
     }
 });
 
-// --- EKSEKUSI ENKRIPSI ---
+document.getElementById('decHexFile').addEventListener('change', e => {
+    let file = e.target.files[0];
+    if (file) {
+        let fileFormat = UI.getFileFormat(file.name);
+        if (!fileFormat) {
+            UI.showMsg("Format file tidak didukung! Hanya .txt yang diterima.", true, 'dec');
+            e.target.value = '';
+            return;
+        }
+        let sizeKB = (file.size / 1024).toFixed(2);
+        let info = `✓ ${file.name} · ${sizeKB} KB`;
+        let clearBtn = `<button class="file-clear-btn" id="clearDecFileBtn">Hapus</button>`;
+        document.getElementById('decFileInfo').innerHTML = `<div class="file-info-content">${info}</div>${clearBtn}`;
+        document.getElementById('decFileInfo').style.display = 'flex';
+        
+        document.getElementById('clearDecFileBtn').addEventListener('click', () => {
+            document.getElementById('decHexFile').value = '';
+            document.getElementById('decFileInfo').innerHTML = '';
+            document.getElementById('decFileInfo').style.display = 'none';
+        });
+    }
+});
+
+// --- ENCRYPTION ---
 document.getElementById('btnEncrypt').addEventListener('click', async () => {
     try {
-        // CLEAR STATE LAMA sebelum mulai enkripsi (dengan null-check)
-        encryptionData = { hexResult: null, jsonData: null };
+        encryptionData = { packResult: null };
         let encOutput = document.getElementById('encOutput');
         let encResultText = document.getElementById('encResultText');
         
@@ -520,282 +680,279 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
             encOutput.querySelectorAll('.error-notification, .success-notification').forEach(el => el.remove());
         }
         
-        // CLEAR ERROR MESSAGE dari attempt sebelumnya
         let statusBox = document.getElementById('statusBox');
         if (statusBox) statusBox.style.display = 'none';
         
-        let mode = document.querySelector('input[name="encMode"]:checked').value;
+        // Get mode from active segmented button
+        let modeBtn = document.querySelector('#encryptSection .seg-btn.active');
+        let mode = modeBtn ? modeBtn.getAttribute('data-mode') : 'text';
+        
         let keyStr = document.getElementById('encKeyInput').value;
-        if (keyStr.length !== 8) throw new Error("Kunci Simetrik wajib 8 karakter!");
+        if (keyStr.length !== 8) throw new Error("🔑 Kunci Simetrik wajib 8 karakter!");
 
         let cipher = new BlockCipher(keyStr);
         let keysRSA = RSA.generateKeys();
-        let encKeyRSA = RSA.encrypt(new TextEncoder().encode(keyStr), keysRSA.pub);
-
-        let accessKeyFile = JSON.stringify({
-            encryptedKey: encKeyRSA,
-            privateKey: { d: keysRSA.priv.d.toString(), n: keysRSA.priv.n.toString() },
-            iv: Array.from(cipher.iv)
-        });
+        
+        // Siapkan data untuk packing
+        let ivHex = UI.toHex(cipher.iv);
+        let rsaDStr = keysRSA.priv.d.toString();
+        let rsaNStr = keysRSA.priv.n.toString();
+        let isImage = 'false';
+        let imageFormat = 'txt';
+        let imageHeaderHex = '';
+        let ciphertextHex = '';
 
         if (mode === 'text') {
             let txt = document.getElementById('encTextInput').value;
-            if (!txt) throw new Error("Pesan tidak boleh kosong!");
+            if (!txt) throw new Error("📝 Pesan tidak boleh kosong!");
             
             let plainBytes = new TextEncoder().encode(txt);
-            let plainChecksum = Checksum.compute(plainBytes);  // HITUNG CHECKSUM PLAINTEXT
+            let plainChecksum = Checksum.compute(plainBytes);
             let encBytes = cipher.process(plainBytes, true);
-            let hexResult = UI.toHex(encBytes);
+            ciphertextHex = UI.toHex(encBytes);
             
-            // UPDATE JSON dengan checksum
-            let accessKeyFile = JSON.stringify({
-                encryptedKey: encKeyRSA,
-                privateKey: { d: keysRSA.priv.d.toString(), n: keysRSA.priv.n.toString() },
-                iv: Array.from(cipher.iv),
-                checksum: plainChecksum  // ← ADD CHECKSUM
-            });
+            let headerLen = '0';
+            let safeHeaderHex = 'NA';
+            let packString = `${ivHex}|${plainChecksum}|${rsaDStr}|${rsaNStr}|${isImage}|${imageFormat}|${headerLen}|${safeHeaderHex}|||${ciphertextHex}`;
+            let packBytes = new TextEncoder().encode(packString);
+            let packB64 = Base64Custom.encode(packBytes);
             
             document.getElementById('encOutput').style.display = 'block';
-            document.getElementById('encResultText').value = displayHexResult(hexResult);
+            document.getElementById('encResultText').value = packB64;
+            document.getElementById('encOutputByteCount').textContent = packB64.length;
+            encryptionData.packResult = packB64;
             
-            // STORE DATA untuk download manual
-            encryptionData.hexResult = hexResult;
-            encryptionData.jsonData = accessKeyFile;
-            
-            UI.showMsg("✅ Enkripsi Text Sukses! Gunakan tombol di bawah untuk download hasil.", false, 'enc');
+            UI.showMsg("✅ Enkripsi Text Sukses! Silakan copy atau download hasilnya.", false, 'enc');
 
         } else if (mode === 'txt-file') {
-            // MODE 2: Upload File TXT
             let file = document.getElementById('encTxtFileInput').files[0];
-            if (!file) throw new Error("Pilih file TXT terlebih dahulu!");
+            if (!file) throw new Error("📄 Pilih file TXT terlebih dahulu!");
 
             let buffer = await file.arrayBuffer();
             let plainBytes = new Uint8Array(buffer);
             
-            // Validate TXT content
             let text = new TextDecoder('utf-8', { fatal: true }).decode(plainBytes);
-            if (!text || text.length === 0) throw new Error("File TXT kosong!");
+            if (!text || text.length === 0) throw new Error("📄 File TXT kosong!");
             
             let plainChecksum = Checksum.compute(plainBytes);
             let encBytes = cipher.process(plainBytes, true);
-            let hexResult = UI.toHex(encBytes);
+            ciphertextHex = UI.toHex(encBytes);
             
-            // UPDATE JSON dengan checksum
-            let accessKeyFile = JSON.stringify({
-                encryptedKey: encKeyRSA,
-                privateKey: { d: keysRSA.priv.d.toString(), n: keysRSA.priv.n.toString() },
-                iv: Array.from(cipher.iv),
-                checksum: plainChecksum,
-                imageFormat: 'txt',
-                isImage: false
-            });
+            let headerLen = '0';
+            let safeHeaderHex = 'NA';
+            let packString = `${ivHex}|${plainChecksum}|${rsaDStr}|${rsaNStr}|${isImage}|txt|${headerLen}|${safeHeaderHex}|||${ciphertextHex}`;
+            let packBytes = new TextEncoder().encode(packString);
+            let packB64 = Base64Custom.encode(packBytes);
             
             document.getElementById('encOutput').style.display = 'block';
-            document.getElementById('encResultText').value = displayHexResult(hexResult);
+            document.getElementById('encResultText').value = packB64;
+            document.getElementById('encOutputByteCount').textContent = packB64.length;
+            encryptionData.packResult = packB64;
             
-            // STORE DATA untuk download manual
-            encryptionData.hexResult = hexResult;
-            encryptionData.jsonData = accessKeyFile;
-            
-            // Clear file input after encryption
             document.getElementById('encTxtFileInput').value = '';
             document.getElementById('encTxtFileInfo').style.display = 'none';
             
-            UI.showMsg("✅ Enkripsi File TXT Sukses! Gunakan tombol di bawah untuk download hasil.", false, 'enc');
+            UI.showMsg("✅ Enkripsi File TXT Sukses! Silakan copy atau download hasilnya.", false, 'enc');
 
         } else if (mode === 'image') {
-            // MODE 3: Upload Gambar
             let file = document.getElementById('encImageInput').files[0];
-            if (!file) throw new Error("Pilih file gambar terlebih dahulu!");
+            if (!file) throw new Error("🖼️ Pilih file gambar terlebih dahulu!");
 
-            let imageFormat = UI.getImageFormat(file.name);
-            if (!imageFormat) throw new Error("Format gambar tidak didukung! Gunakan PNG, JPG, BMP, atau GIF.");
+            let imgFormat = UI.getImageFormat(file.name);
+            if (!imgFormat) throw new Error("🖼️ Format gambar tidak didukung!");
 
             let buffer = await file.arrayBuffer();
             let imageBytes = new Uint8Array(buffer);
             
-            // Validasi magic bytes image
-            UI.validateImageFile(imageBytes, imageFormat);
+            UI.validateImageFile(imageBytes, imgFormat);
             
-            // Extract header dan body (header tidak di-encrypt, hanya body)
-            let { header, body } = UI.extractImageHeader(imageBytes, imageFormat);
-            
-            // Encrypt HANYA body (image data)
+            let { header, body } = UI.extractImageHeader(imageBytes, imgFormat);
             let bodyChecksum = Checksum.compute(body);
             let encBodyBytes = cipher.process(body, true);
-            let hexResult = UI.toHex(encBodyBytes);
+            ciphertextHex = UI.toHex(encBodyBytes);
             
-            // Header disimpan as base64 (safe untuk JSON)
-            let headerBase64 = btoa(String.fromCharCode(...header));
+            imageHeaderHex = UI.toHex(header);
+            isImage = 'true';
+            imageFormat = imgFormat;
             
-            // UPDATE JSON dengan header + checksum body
-            let accessKeyFile = JSON.stringify({
-                encryptedKey: encKeyRSA,
-                privateKey: { d: keysRSA.priv.d.toString(), n: keysRSA.priv.n.toString() },
-                iv: Array.from(cipher.iv),
-                checksum: bodyChecksum,  // Checksum hanya untuk body
-                imageFormat: imageFormat,
-                isImage: true,
-                imageHeader: headerBase64,  // Header untuk rekonstruksi
-                headerSize: header.length
-            });
+            let headerLen = (header.length).toString();
+            let packString = `${ivHex}|${bodyChecksum}|${rsaDStr}|${rsaNStr}|${isImage}|${imageFormat}|${headerLen}|${imageHeaderHex}|||${ciphertextHex}`;
+            let packBytes = new TextEncoder().encode(packString);
+            let packB64 = Base64Custom.encode(packBytes);
             
             document.getElementById('encOutput').style.display = 'block';
-            document.getElementById('encResultText').value = displayHexResult(hexResult);
+            document.getElementById('encResultText').value = packB64;
+            document.getElementById('encOutputByteCount').textContent = packB64.length;
+            encryptionData.packResult = packB64;
             
-            // STORE DATA untuk download manual
-            encryptionData.hexResult = hexResult;
-            encryptionData.jsonData = accessKeyFile;
-            
-            // Clear file input after encryption
             document.getElementById('encImageInput').value = '';
             document.getElementById('encImageInfo').style.display = 'none';
             
-            UI.showMsg(`✅ Enkripsi Gambar (${imageFormat.toUpperCase()}) Sukses! Gunakan tombol di bawah untuk download hasil.`, false, 'enc');
-
+            UI.showMsg(`✅ Enkripsi Gambar (${imgFormat.toUpperCase()}) Sukses! Silakan download hasilnya.`, false, 'enc');
         }
     } catch (err) { UI.showMsg(err.message, true, 'enc'); }
 });
 
-// --- EKSEKUSI DEKRIPSI ---
+// --- DECRYPTION ---
 document.getElementById('btnDecrypt').addEventListener('click', async () => {
     try {
-        // CLEAR STATE LAMA sebelum mulai dekripsi (dengan null-check)
         decryptionData = { resultBytes: null, format: null, isImage: false };
         let decOutput = document.getElementById('decOutput');
         let decResultText = document.getElementById('decResultText');
         let downloadDecBtn = document.getElementById('downloadDecBtn');
+        let copyDecBtn = document.getElementById('copyDecBtn');
+        let decImagePreview = document.getElementById('decImagePreview');
+        let decTextOutput = document.getElementById('decTextOutput');
         
         if (decOutput) decOutput.style.display = 'none';
         if (decResultText) decResultText.value = '';
         if (downloadDecBtn) downloadDecBtn.style.display = 'none';
+        if (copyDecBtn) copyDecBtn.style.display = 'none';
+        if (decImagePreview) decImagePreview.style.display = 'none';
+        if (decTextOutput) decTextOutput.style.display = 'none';
         if (decOutput) {
             decOutput.querySelectorAll('.error-notification, .success-notification').forEach(el => el.remove());
         }
         
-        // CLEAR ERROR MESSAGE dari attempt sebelumnya
         let statusBox = document.getElementById('statusBox');
         if (statusBox) statusBox.style.display = 'none';
         
-        let fileAccessKey = document.getElementById('decAccessKeyFile').files[0];
-
-        if (!fileAccessKey) throw new Error("Harap upload file Kunci_Akses.json!");
-
-        let accessData = JSON.parse(await fileAccessKey.text());
-        
-        // Validasi structure JSON
-        if (!accessData.encryptedKey || !accessData.privateKey || accessData.iv === undefined) {
-            throw new Error("File Kunci_Akses.json corrupt atau format tidak sesuai!");
-        }
-        
-        let privKey = { d: BigInt(accessData.privateKey.d), n: BigInt(accessData.privateKey.n) };
-        
-        // VALIDASI KUNCI SIMETRIK USER
         let userKeyInput = document.getElementById('decKeyInput').value;
         if (userKeyInput.length !== 8) {
-            throw new Error("❌ Kunci Simetrik wajib 8 karakter! Input yang benar untuk melanjutkan dekripsi.");
+            throw new Error("🔑 Kunci Simetrik wajib 8 karakter!");
         }
         
-        // DEKRIPSI KUNCI DARI RSA
-        let decKeyBytes = RSA.decrypt(accessData.encryptedKey, privKey);
-        let originalKeyStr = new TextDecoder().decode(decKeyBytes);
-        
-        // VERIFY - KUNCI USER HARUS COCOK DENGAN KUNCI ORIGINAL
-        if (userKeyInput !== originalKeyStr) {
-            throw new Error("❌ KUNCI SIMETRIK SALAH!\n\nKunci yang Anda input tidak cocok dengan kunci saat enkripsi.\nMeskipun cuma 1 karakter berbeda, dekripsi akan GAGAL.\n\nPastikan kunci tepat sama!");
-        }
-        
-        let ivBytes = new Uint8Array(accessData.iv || [10, 20, 30, 40, 50, 60, 70, 80]);
-        let cipher = new BlockCipher(userKeyInput, ivBytes);  // Gunakan kunci yang sudah verified
-        let imageFormat = accessData.imageFormat || (accessData.isBmp ? 'bmp' : 'txt');  // Backward compatibility
-
-        // GET HEX INPUT - BISA DARI PASTE ATAU UPLOAD FILE
-        let hexInput = '';
-        let decMode = document.querySelector('input[name="decMode"]:checked').value;
+        // Get mode from active segmented button
+        let modeBtn = document.querySelector('#decryptSection .seg-btn.active');
+        let decMode = modeBtn ? modeBtn.getAttribute('data-dec-mode') : 'paste';
+        let packB64Input = '';
         
         if (decMode === 'paste') {
-            hexInput = document.getElementById('decTextInput').value;
-            if (!hexInput) throw new Error("Teks sandi kosong!");
+            packB64Input = document.getElementById('decTextInput').value;
+            if (!packB64Input) throw new Error("📝 Teks ciphertext kosong!");
         } else {
             let hexFile = document.getElementById('decHexFile').files[0];
-            if (!hexFile) throw new Error("Harap upload file Hex (Hasil_Enkripsi.txt)!");
-            hexInput = await hexFile.text();
-            if (!hexInput) throw new Error("File hex kosong!");
+            if (!hexFile) throw new Error("📁 Harap upload file Hasil_Enkripsi.txt!");
+            packB64Input = await hexFile.text();
+            if (!packB64Input) throw new Error("📁 File kosong!");
         }
         
-        // Validasi checksum harus ada di file kunci
-        if (!accessData.checksum) {
-            throw new Error("❌ File Kunci_Akses.json tidak punya checksum! Mungkin dibuat dari versi lama. Encrypt ulang dengan versi terbaru!");
-        }
+        // Decode Base64
+        let packBytes = Base64Custom.decode(packB64Input.trim());
+        let packString = new TextDecoder().decode(packBytes);
         
-        // Validasi hex dulu (terpisah)
-        let encryptedBytes = UI.fromHex(hexInput);  // Ini akan throw error detail jika format salah
-        
-        try {
-            // Decrypt semuanya (text only)
-            let decBody = cipher.process(encryptedBytes, false);
-            
-            // VERIFY CHECKSUM - INI YANG KRUSIAL!
-            let decryptedChecksum = Checksum.compute(decBody);
-            
-            if (decryptedChecksum !== accessData.checksum) {
-                // ❌ CHECKSUM TIDAK COCOK = LANGSUNG ERROR! (tanpa output)
-                throw new Error("❌ GAGAL: Integritas data rusak!\n\nChecksum tidak cocok. Penyebab:\n1. 🔑 Kunci_Akses.json SALAH atau dari file berbeda\n2. 📝 Hex text salah atau berubah (bahkan 1 bit pun akan gagal)\n3. 🗝️ Kunci simetrik tidak sesuai\n\n⚠️ Data tidak valid! Output TIDAK ditampilkan untuk keamanan.");
-            }
-            
-            document.getElementById('decOutput').style.display = 'block';
-            
-            // Handle image vs text
-            if (accessData.isImage && accessData.imageHeader) {
-                // IMAGE RECONSTRUCTION
-                // Decode header dari base64
-                let headerBase64 = accessData.imageHeader;
-                let headerStr = atob(headerBase64);
-                let header = new Uint8Array(headerStr.length);
-                for (let i = 0; i < headerStr.length; i++) {
-                    header[i] = headerStr.charCodeAt(i);
-                }
-                
-                // Reconstruct gambar: header + decrypted body
-                let reconstructedImage = new Uint8Array(header.length + decBody.length);
-                reconstructedImage.set(header, 0);
-                reconstructedImage.set(decBody, header.length);
-                
-                // Validasi magic bytes setelah reconstruct
-                UI.validateImageFile(reconstructedImage, accessData.imageFormat);
-                
-                // STORE DATA untuk download image
-                decryptionData.format = accessData.imageFormat;
-                decryptionData.isImage = true;
-                decryptionData.resultBytes = reconstructedImage;
-                
-                // Tampilkan preview sukses
-                let previewText = `[Gambar ${accessData.imageFormat.toUpperCase()} - ${reconstructedImage.length} bytes]`;
-                document.getElementById('decResultText').value = previewText;
-                // SHOW download button untuk image
-                document.getElementById('downloadDecBtn').style.display = 'block';
-                document.getElementById('downloadDecBtn').textContent = `⬇️ Download ${accessData.imageFormat.toUpperCase()}`;
-                
-                UI.showMsg(`✅ Dekripsi Gambar (${accessData.imageFormat.toUpperCase()}) Sukses! Kunci ✓ + Checksum ✓ + Integritas ✓ + Magic Bytes ✓`, false, 'dec');
-                
-            } else {
-                // TEXT FILE DECRYPTION
-                // STORE DATA untuk download txt file hasil dekripsi
-                decryptionData.format = 'txt';
-                decryptionData.isImage = false;
-                decryptionData.resultBytes = decBody;
-                
-                // Tampilkan text hasil dekripsi
-                document.getElementById('decResultText').value = new TextDecoder().decode(decBody);
-                // SHOW download button untuk txt file
-                document.getElementById('downloadDecBtn').style.display = 'block';
-                document.getElementById('downloadDecBtn').textContent = '⬇️ Download TXT';
-                
-                UI.showMsg("✅ Dekripsi Sukses! Kunci ✓ + Checksum ✓ + Integritas ✓", false, 'dec');
-            }
-        } catch (decErr) {
-            throw decErr;  // Pass through semua error (format, checksum, etc)
-        }
+        // Parse metadata safely from the LAST separator
+        let sepIndex = packString.lastIndexOf('|||');
+        if (sepIndex === -1) throw new Error("❌ Format ciphertext tidak valid!");
 
+        let metadataPart = packString.slice(0, sepIndex);
+        let ciphertextHex = packString.slice(sepIndex + 3);
+        let metadata = metadataPart.split('|');
+
+        let ivHex, checksum, rsaDStr, rsaNStr, isImageFlag, imageFormat, headerLen, imageHeaderHex;
+
+        // New format: IV|Checksum|RSA_d|RSA_n|isImage|imageFormat|headerLen|imageHeader
+        if (metadata.length >= 8) {
+            ivHex = metadata[0];
+            checksum = metadata[1];
+            rsaDStr = metadata[2];
+            rsaNStr = metadata[3];
+            isImageFlag = metadata[4] === 'true';
+            imageFormat = metadata[5] || 'txt';
+            headerLen = parseInt(metadata[6], 10) || 0;
+            imageHeaderHex = metadata[7] || '';
+        // Backward compatibility
+        } else if (metadata.length === 7) {
+            ivHex = metadata[0];
+            checksum = metadata[1];
+            rsaDStr = metadata[2];
+            rsaNStr = metadata[3];
+            isImageFlag = metadata[4] === 'true';
+            imageFormat = metadata[5] || 'txt';
+            imageHeaderHex = metadata[6] || '';
+            headerLen = imageHeaderHex && imageHeaderHex !== 'NA' ? Math.floor(imageHeaderHex.length / 2) : 0;
+        } else {
+            throw new Error("❌ Metadata tidak lengkap!");
+        }
+        
+        // Convert IV from hex
+        let ivBytes = UI.fromHex(ivHex);
+        
+        // Create cipher dengan IV yang sudah stored
+        let cipher = new BlockCipher(userKeyInput, ivBytes);
+        
+        // Decrypt ciphertext
+        let ciphertextBytes = UI.fromHex(ciphertextHex);
+        let decBody = cipher.process(ciphertextBytes, false);
+        
+        // Verify checksum
+        let decryptedChecksum = Checksum.compute(decBody);
+        if (decryptedChecksum !== checksum) {
+            throw new Error("❌ Integritas data rusak atau kunci salah!");
+        }
+        
+        document.getElementById('decOutput').style.display = 'block';
+        
+        if (isImageFlag && headerLen > 0 && imageHeaderHex) {
+            // Image reconstruction
+            let headerBytes = UI.fromHex(imageHeaderHex);
+            let reconstructedImage = new Uint8Array(headerBytes.length + decBody.length);
+            reconstructedImage.set(headerBytes, 0);
+            reconstructedImage.set(decBody, headerBytes.length);
+            
+            UI.validateImageFile(reconstructedImage, imageFormat);
+            
+            decryptionData.format = imageFormat;
+            decryptionData.isImage = true;
+            decryptionData.resultBytes = reconstructedImage;
+            
+            // Show image preview
+            if (decImagePreview) {
+                let previewImage = document.getElementById('previewImage');
+                let blob = new Blob([reconstructedImage], { type: {
+                    bmp: 'image/bmp',
+                    png: 'image/png',
+                    jpg: 'image/jpeg',
+                    gif: 'image/gif'
+                }[imageFormat] || 'application/octet-stream' });
+                let dataUrl = URL.createObjectURL(blob);
+                previewImage.src = dataUrl;
+                decImagePreview.style.display = 'block';
+            }
+            
+            if (decTextOutput) decTextOutput.style.display = 'none';
+            if (copyDecBtn) copyDecBtn.style.display = 'none';
+            if (downloadDecBtn) {
+                downloadDecBtn.style.display = 'block';
+                downloadDecBtn.textContent = `⬇️ Download ${imageFormat.toUpperCase()}`;
+            }
+            
+            UI.showMsg(`✅ Dekripsi Gambar (${imageFormat.toUpperCase()}) Sukses! ✓ Kunci ✓ Checksum ✓ Magic Bytes`, false, 'dec');
+        } else {
+            // Text file
+            decryptionData.format = 'txt';
+            decryptionData.isImage = false;
+            decryptionData.resultBytes = decBody;
+            
+            let decodedText = new TextDecoder().decode(decBody);
+            if (decResultText) {
+                decResultText.value = decodedText;
+                document.getElementById('decOutputByteCount').textContent = decBody.length;
+            }
+            
+            if (decTextOutput) decTextOutput.style.display = 'block';
+            if (decImagePreview) decImagePreview.style.display = 'none';
+            if (copyDecBtn) copyDecBtn.style.display = 'block';
+            if (downloadDecBtn) {
+                downloadDecBtn.style.display = 'block';
+                downloadDecBtn.textContent = '⬇️ Download TXT';
+            }
+            
+            UI.showMsg("✅ Dekripsi Sukses! ✓ Kunci ✓ Checksum ✓ Integritas", false, 'dec');
+        }
+        
     } catch (err) { UI.showMsg("❌ " + err.message, true, 'dec'); }
 });
+
+// Attach download button handler
+document.getElementById('downloadDecBtn').addEventListener('click', downloadDecResult);

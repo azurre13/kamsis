@@ -3,97 +3,403 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hybrid Crypto (CBC + RSA)</title>
+    <title>Hybrid Cryptography - Deep Navy Glassmorphism</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
-    <h1>Kriptografi Hybrid</h1>
-    <h4>Block Cipher (Mode CBC) + RSA</h4>
-    
-    <div id="statusBox"></div>
+    <!-- Header -->
+    <div class="header">
+        <h1>Hybrid Cryptography</h1>
+        <p class="subtitle">Block Cipher (CBC Mode) + RSA Encryption</p>
+    </div>
 
-    <div class="card">
-        <h2 style="margin-top:0; color: #007bff;">Mode Enkripsi</h2>
-        
-        <div class="radio-group">
-            <label><input type="radio" name="encMode" value="text" checked> 📝 Teks Manual</label>
-            <label><input type="radio" name="encMode" value="txt-file"> 📄 Upload File TXT</label>
-            <label><input type="radio" name="encMode" value="image"> 🖼️ Upload Gambar</label>
-        </div>
+    <!-- Status Box -->
+    <div id="statusBox" class="status-box"></div>
 
-        <div id="encTextContainer">
-            <label>Pesan Rahasia:</label>
-            <textarea id="encTextInput" rows="4" placeholder="Ketik pesan yang ingin dirahasiakan..."></textarea>
-        </div>
+    <!-- Tab Navigation -->
+    <div class="tab-navigation">
+        <button class="tab-btn active" data-tab="encrypt">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            Mode Enkripsi
+        </button>
+        <button class="tab-btn" data-tab="decrypt">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+            </svg>
+            Mode Dekripsi
+        </button>
+    </div>
 
-        <div id="encTxtFileContainer" style="display: none;">
-            <label>Pilih File TXT:</label>
-            <input type="file" id="encTxtFileInput" accept=".txt">
-            <div class="file-info" id="encTxtFileInfo" style="display:none;"></div>
-        </div>
+    <!-- ENKRIPSI SECTION -->
+    <div id="encryptSection" class="tab-content active">
+        <div class="card">
+            <!-- Mode Input Selection -->
+            <div class="section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="1"></circle>
+                    <path d="M12 1v6m0 6v6"></path>
+                    <path d="M4.22 4.22l4.24 4.24m3.08 3.08l4.24 4.24M4.22 19.78l4.24-4.24m3.08-3.08l4.24-4.24"></path>
+                </svg>
+                Pilih Mode Input
+            </div>
+            <div class="segmented-buttons">
+                <button class="seg-btn active" data-mode="text">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Teks Manual
+                </button>
+                <button class="seg-btn" data-mode="txt-file">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                        <polyline points="13 2 13 9 20 9"></polyline>
+                    </svg>
+                    Upload TXT
+                </button>
+                <button class="seg-btn" data-mode="image">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    Upload Gambar
+                </button>
+            </div>
 
-        <div id="encImageContainer" style="display: none;">
-            <label>Pilih File Gambar (PNG, JPG, BMP, GIF):</label>
-            <input type="file" id="encImageInput" accept=".png,.jpg,.jpeg,.bmp,.gif">
-            <div class="file-info" id="encImageInfo" style="display:none;"></div>
-        </div>
+            <!-- Text Input Mode -->
+            <div id="encTextMode" class="input-section active">
+                <label for="encTextInput" class="input-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Pesan Rahasia
+                </label>
+                <div class="input-wrapper">
+                    <textarea id="encTextInput" placeholder="Ketik pesan yang ingin dirahasiakan..." rows="5"></textarea>
+                    <div class="input-counter">
+                        <span id="encTextByteCount">0</span> bytes
+                    </div>
+                </div>
+            </div>
 
-        <label>Kunci Simetrik (Wajib 8 Karakter):</label>
-        <input type="text" id="encKeyInput" placeholder="Contoh: RAHASIA1" maxlength="8">
-        
-        <button id="btnEncrypt">Enkripsi Sekarang</button>
+            <!-- TXT File Mode -->
+            <div id="encTxtFileMode" class="input-section">
+                <label class="input-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                        <polyline points="13 2 13 9 20 9"></polyline>
+                    </svg>
+                    Upload File TXT
+                </label>
+                <div class="drag-drop-area" id="encTxtDragArea">
+                    <div class="drag-drop-content">
+                        <div class="drag-drop-icon">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="16 16 12 12 8 16"></polyline>
+                                <line x1="12" y1="12" x2="12" y2="21"></line>
+                                <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
+                            </svg>
+                        </div>
+                        <p>Drag & drop file TXT di sini</p>
+                        <p class="drag-drop-hint">atau klik tombol di bawah</p>
+                    </div>
+                    <input type="file" id="encTxtFileInput" accept=".txt" style="display: none;">
+                </div>
+                <button class="browse-btn" onclick="document.getElementById('encTxtFileInput').click()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    Pilih File
+                </button>
+                <div class="file-info" id="encTxtFileInfo"></div>
+            </div>
 
-        <div id="encOutput" class="output-box">
-            <label>Hasil Teks Sandi (Hexadecimal):</label>
-            <p style="font-size: 11px; color: #666; margin: 5px 0; background: #fffacd; padding: 8px; border-radius: 3px;">
-                ✓ Download file hasil enkripsi menggunakan tombol di bawah
-            </p>
-            <textarea id="encResultText" rows="4" readonly style="max-height: 200px; overflow-y: auto;"></textarea>
-            <div class="hex-preview" id="hexPreview"></div>
-            <div style="display: flex; gap: 8px; margin-top: 8px;">
-                <button class="copy-btn" style="flex: 1;" onclick="copyToClipboard('encResultText')">📋 Copy Hex</button>
-                <button class="copy-btn" style="flex: 1;" onclick="downloadEncHex()">⬇️ Download Hex (.txt)</button>
-                <button class="copy-btn" style="flex: 1;" onclick="downloadEncJson()">⬇️ Download Key (JSON)</button>
+            <!-- Image Mode -->
+            <div id="encImageMode" class="input-section">
+                <label class="input-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    Upload Gambar (PNG, JPG, BMP, GIF)
+                </label>
+                <div class="drag-drop-area" id="encImageDragArea">
+                    <div class="drag-drop-content">
+                        <div class="drag-drop-icon">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="16 16 12 12 8 16"></polyline>
+                                <line x1="12" y1="12" x2="12" y2="21"></line>
+                                <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
+                            </svg>
+                        </div>
+                        <p>Drag & drop gambar di sini</p>
+                        <p class="drag-drop-hint">atau klik tombol di bawah</p>
+                    </div>
+                    <input type="file" id="encImageInput" accept=".png,.jpg,.jpeg,.bmp,.gif" style="display: none;">
+                </div>
+                <button class="browse-btn" onclick="document.getElementById('encImageInput').click()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    Pilih Gambar
+                </button>
+                <div class="file-info" id="encImageInfo"></div>
+            </div>
+
+            <!-- Symmetric Key Input -->
+            <div class="form-group">
+                <label for="encKeyInput" class="input-label key-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 2l-9 4m0 0L5 2m0 0l9 4m0 0v16"></path>
+                        <path d="M12 12v.01"></path>
+                    </svg>
+                    Kunci Simetrik
+                </label>
+                <div class="input-wrapper key-input-wrapper">
+                    <input type="password" id="encKeyInput" placeholder="Tepat 8 karakter" maxlength="8" class="key-input">
+                    <button type="button" class="eye-toggle" id="encEyeToggle" aria-label="Toggle key visibility">
+                        <svg class="eye-icon eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <svg class="eye-icon eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                        </svg>
+                    </button>
+                    <div class="input-counter">
+                        <span id="encKeyCount">0</span>/8
+                    </div>
+                </div>
+            </div>
+
+            <!-- Encrypt Button -->
+            <button id="btnEncrypt" class="btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                Enkripsi Sekarang
+            </button>
+
+            <!-- Output Section -->
+            <div id="encOutput" class="output-section" style="display: none;">
+                <div class="output-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+                    </svg>
+                    Hasil Enkripsi (Base64 + Metadata)
+                </div>
+                <div class="output-info">
+                    ✓ Format terpacked: IV + Checksum + RSA Keys + Metadata + Ciphertext
+                </div>
+                <div class="output-wrapper">
+                    <textarea id="encResultText" readonly rows="6"></textarea>
+                    <div class="output-counter">
+                        <span id="encOutputByteCount">0</span> bytes
+                    </div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn-secondary" onclick="copyToClipboard('encResultText')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                        </svg>
+                        Copy
+                    </button>
+                    <button class="btn-secondary" onclick="downloadEncResult()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="card decrypt">
-        <h2 style="margin-top:0; color: #28a745;">Mode Dekripsi</h2>
+    <!-- DEKRIPSI SECTION -->
+    <div id="decryptSection" class="tab-content">
+        <div class="card">
+            <!-- Decryption Mode Selection -->
+            <div class="section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="1"></circle>
+                    <path d="M12 1v6m0 6v6"></path>
+                    <path d="M4.22 4.22l4.24 4.24m3.08 3.08l4.24 4.24M4.22 19.78l4.24-4.24m3.08-3.08l4.24-4.24"></path>
+                </svg>
+                Pilih Mode Input
+            </div>
+            <div class="segmented-buttons">
+                <button class="seg-btn active" data-dec-mode="paste">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                    </svg>
+                    Paste Base64
+                </button>
+                <button class="seg-btn" data-dec-mode="file">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    Upload File
+                </button>
+            </div>
 
-        <div class="radio-group">
-            <label><input type="radio" name="decMode" value="paste" checked> 📝 Paste Hex Manual</label>
-            <label><input type="radio" name="decMode" value="file"> 📁 Upload File Hex (.txt)</label>
+            <!-- Paste Mode -->
+            <div id="decPasteMode" class="input-section active">
+                <label for="decTextInput" class="input-label cipher-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Teks Sandi (Base64)
+                </label>
+                <div class="input-wrapper">
+                    <textarea id="decTextInput" placeholder="Paste hasil enkripsi (Base64 format) di sini..." rows="6" class="cipher-input"></textarea>
+                    <div class="input-counter">
+                        <span id="decTextByteCount">0</span> bytes
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Mode -->
+            <div id="decFileMode" class="input-section">
+                <label class="input-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    Upload File Result
+                </label>
+                <div class="drag-drop-area" id="decFileDragArea">
+                    <div class="drag-drop-content">
+                        <div class="drag-drop-icon">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="16 16 12 12 8 16"></polyline>
+                                <line x1="12" y1="12" x2="12" y2="21"></line>
+                                <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
+                            </svg>
+                        </div>
+                        <p>Drag & drop file Hasil_Enkripsi.txt di sini</p>
+                        <p class="drag-drop-hint">atau klik tombol di bawah</p>
+                    </div>
+                    <input type="file" id="decHexFile" accept=".txt" style="display: none;">
+                </div>
+                <button class="browse-btn" onclick="document.getElementById('decHexFile').click()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    Pilih File
+                </button>
+                <div class="file-info" id="decFileInfo"></div>
+            </div>
+
+            <!-- Symmetric Key Input (Decrypt) -->
+            <div class="form-group">
+                <label for="decKeyInput" class="input-label key-label">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 2l-9 4m0 0L5 2m0 0l9 4m0 0v16"></path>
+                        <path d="M12 12v.01"></path>
+                    </svg>
+                    Kunci Simetrik
+                </label>
+                <div class="input-wrapper key-input-wrapper">
+                    <input type="password" id="decKeyInput" placeholder="Tepat 8 karakter - HARUS SAMA dengan enkripsi" maxlength="8" class="key-input">
+                    <button type="button" class="eye-toggle" id="decEyeToggle" aria-label="Toggle key visibility">
+                        <svg class="eye-icon eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        <svg class="eye-icon eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                        </svg>
+                    </button>
+                    <div class="input-counter">
+                        <span id="decKeyCount">0</span>/8
+                    </div>
+                </div>
+                <p class="warning-text">⚠️ Kunci HARUS tepat sama! Checksum otomatis memvalidasi kunci Anda.</p>
+            </div>
+
+            <!-- Decrypt Button -->
+            <button id="btnDecrypt" class="btn-success">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                </svg>
+                Buka Sandi
+            </button>
+
+            <!-- Output Section -->
+            <div id="decOutput" class="output-section" style="display: none;">
+                <div class="output-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+                    </svg>
+                    Hasil Dekripsi
+                </div>
+
+                <!-- Image Preview -->
+                <div id="decImagePreview" class="image-preview" style="display: none;">
+                    <img id="previewImage" alt="Preview Gambar">
+                </div>
+
+                <!-- Text Output -->
+                <div id="decTextOutput" style="display: none;">
+                    <div class="output-wrapper">
+                        <textarea id="decResultText" readonly rows="6"></textarea>
+                        <div class="output-counter">
+                            <span id="decOutputByteCount">0</span> bytes
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="btn-group">
+                    <button id="copyDecBtn" class="btn-secondary" onclick="copyToClipboard('decResultText')" style="display: none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                        </svg>
+                        Copy
+                    </button>
+                    <button id="downloadDecBtn" class="btn-secondary" style="display: none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download
+                    </button>
+                </div>
+            </div>
         </div>
+    </div>
+</div>
 
-        <div id="decPasteContainer">
-            <label>Teks Sandi (Hexadecimal):</label>
-            <textarea id="decTextInput" rows="4" placeholder="Paste teks hasil enkripsi di sini (bisa dengan spasi, dash, atau colon)..." style="max-height: 200px; overflow-y: auto;"></textarea>
-        </div>
+<script src="app.js"></script>
 
-        <div id="decFileContainer" style="display: none;">
-            <label>Upload File Hex (Hasil_Enkripsi.txt):</label>
-            <input type="file" id="decHexFile" accept=".txt">
-            <div class="file-info" id="hexFileInfo" style="display:none;"></div>
-        </div>
+</body>
+</html>
+                </div>
 
-        <label>File Kunci Akses (Kunci_Akses.json):</label>
-        <input type="file" id="decAccessKeyFile" accept=".json">
-        
-        <label>Kunci Simetrik (8 Karakter - HARUS SAMA seperti saat enkripsi):</label>
-        <input type="text" id="decKeyInput" placeholder="Contoh: RAHASIA1" maxlength="8">
-        <p style="font-size: 11px; color: #d9534f; margin: 5px 0;">⚠️ Kunci HARUS tepat sama! Salah 1 karakter = error total, gak ada output!</p>
-        
-        <button id="btnDecrypt" class="btn-success">Buka Sandi</button>
-
-        <div id="decOutput" class="output-box success">
-            <label>Hasil Pesan Asli:</label>
-            <textarea id="decResultText" rows="4" readonly style="max-height: 200px; overflow-y: auto;"></textarea>
-            <div style="display: flex; gap: 8px; margin-top: 8px;">
-                <button class="copy-btn" id="copyDecBtn" style="flex: 1;" onclick="copyToClipboard('decResultText')">📋 Copy</button>
-                <button class="copy-btn" id="downloadDecBtn" style="flex: 1; display: none;" onclick="downloadDecResult()">⬇️ Download</button>
+                <!-- Action Buttons -->
+                <div class="btn-group">
+                    <button id="copyDecBtn" class="btn-secondary" onclick="copyToClipboard('decResultText')" style="display: none;">📋 Copy</button>
+                    <button id="downloadDecBtn" class="btn-secondary" style="display: none;">⬇️ Download</button>
+                </div>
             </div>
         </div>
     </div>
