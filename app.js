@@ -720,9 +720,9 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
         let keyBytes = new TextEncoder().encode(keyStr);
         let encryptedKeyArray = RSA.encrypt(keyBytes, keysRSA.pub);
         let encryptedKeyHex = encryptedKeyArray.map(n => {
-            let hex = BigInt(n).toString(16);
+            let hex = BigInt(n).toString(16).toUpperCase();  // Standardize ke UPPERCASE
             return hex.length === 1 ? '0' + hex : hex;
-        }).join('-'); // SUDAH DIPERBAIKI: Menggunakan '-' agar tidak bentrok dengan pemisah metadata
+        }).join('-');
         
         // Siapkan data untuk packing
         let ivHex = UI.toHex(cipher.iv);
@@ -867,7 +867,7 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
             if (!packB64Input) throw new Error("📁 File kosong!");
         }
         
-        // Decode Base64
+        // Decode Base64 (trim untuk handle trailing newline dari file)
         let packBytes = Base64Custom.decode(packB64Input.trim());
         let packString = new TextDecoder().decode(packBytes);
         
@@ -879,6 +879,11 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
         let ciphertextHex = packString.slice(sepIndex + 3);
         let metadata = metadataPart.split('|');
 
+        // Validasi metadata length
+        if (metadata.length < 8) {
+            throw new Error(`❌ Metadata tidak lengkap! Expected >= 8, got ${metadata.length}`);
+        }
+        
         let ivHex, checksum, encryptedKeyHex, rsaN, isImageFlag, imageFormat, headerLen, imageHeaderHex;
 
         // New format: IV|Checksum|RSA_encrypted_key|RSA_n|isImage|imageFormat|headerLen|imageHeader
@@ -891,24 +896,13 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
             imageFormat = metadata[5] || 'txt';
             headerLen = parseInt(metadata[6], 10) || 0;
             imageHeaderHex = metadata[7] || '';
-        // Backward compatibility (old format with rsaDStr)
-        } else if (metadata.length === 7) {
-            ivHex = metadata[0];
-            checksum = metadata[1];
-            // If third element looks like hex pairs separated by -, it's new format
-            if (metadata[2].includes('-') && metadata[2].match(/^[0-9a-fA-F\-]+$/)) {
-                encryptedKeyHex = metadata[2];
-                rsaN = metadata[3];
-                isImageFlag = metadata[4] === 'true';
-                imageFormat = metadata[5] || 'txt';
-                imageHeaderHex = metadata[6] || '';
-                headerLen = imageHeaderHex && imageHeaderHex !== 'NA' ? Math.floor(imageHeaderHex.length / 2) : 0;
-            } else {
-                // Old format, skip this (shouldn't happen with our new encryption)
-                throw new Error("❌ Format ciphertext tidak kompatibel!");
+            
+            // Validasi format
+            if (!ivHex || !checksum || !encryptedKeyHex || !rsaN) {
+                throw new Error("❌ Metadata element kosong atau tidak valid!");
             }
         } else {
-            throw new Error("❌ Metadata tidak lengkap!");
+            throw new Error(`❌ Format metadata tidak sesuai! Expected >= 8 elements, got ${metadata.length}`);
         }
         
         // HYBRID DECRYPTION: RSA verify key + CBC decrypt data
