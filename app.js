@@ -693,9 +693,17 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
         let cipher = new BlockCipher(keyStr);
         let keysRSA = RSA.generateKeys();
         
+        // HYBRID ENCRYPTION: RSA encrypt key + CBC encrypt data
+        // Convert key to bytes dan RSA encrypt
+        let keyBytes = new TextEncoder().encode(keyStr);
+        let encryptedKeyArray = RSA.encrypt(keyBytes, keysRSA.pub);
+        let encryptedKeyHex = encryptedKeyArray.map(n => {
+            let hex = BigInt(n).toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        }).join('|');
+        
         // Siapkan data untuk packing
         let ivHex = UI.toHex(cipher.iv);
-        let rsaDStr = keysRSA.priv.d.toString();
         let rsaNStr = keysRSA.priv.n.toString();
         let isImage = 'false';
         let imageFormat = 'txt';
@@ -713,7 +721,7 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
             
             let headerLen = '0';
             let safeHeaderHex = 'NA';
-            let packString = `${ivHex}|${plainChecksum}|${rsaDStr}|${rsaNStr}|${isImage}|${imageFormat}|${headerLen}|${safeHeaderHex}|||${ciphertextHex}`;
+            let packString = `${ivHex}|${plainChecksum}|${encryptedKeyHex}|${rsaNStr}|${isImage}|${imageFormat}|${headerLen}|${safeHeaderHex}|||${ciphertextHex}`;
             let packBytes = new TextEncoder().encode(packString);
             let packB64 = Base64Custom.encode(packBytes);
             
@@ -740,7 +748,7 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
             
             let headerLen = '0';
             let safeHeaderHex = 'NA';
-            let packString = `${ivHex}|${plainChecksum}|${rsaDStr}|${rsaNStr}|${isImage}|txt|${headerLen}|${safeHeaderHex}|||${ciphertextHex}`;
+            let packString = `${ivHex}|${plainChecksum}|${encryptedKeyHex}|${rsaNStr}|${isImage}|txt|${headerLen}|${safeHeaderHex}|||${ciphertextHex}`;
             let packBytes = new TextEncoder().encode(packString);
             let packB64 = Base64Custom.encode(packBytes);
             
@@ -776,7 +784,7 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
             imageFormat = imgFormat;
             
             let headerLen = (header.length).toString();
-            let packString = `${ivHex}|${bodyChecksum}|${rsaDStr}|${rsaNStr}|${isImage}|${imageFormat}|${headerLen}|${imageHeaderHex}|||${ciphertextHex}`;
+            let packString = `${ivHex}|${bodyChecksum}|${encryptedKeyHex}|${rsaNStr}|${isImage}|${imageFormat}|${headerLen}|${imageHeaderHex}|||${ciphertextHex}`;
             let packBytes = new TextEncoder().encode(packString);
             let packB64 = Base64Custom.encode(packBytes);
             
@@ -849,36 +857,63 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
         let ciphertextHex = packString.slice(sepIndex + 3);
         let metadata = metadataPart.split('|');
 
-        let ivHex, checksum, rsaDStr, rsaNStr, isImageFlag, imageFormat, headerLen, imageHeaderHex;
+        let ivHex, checksum, encryptedKeyHex, rsaN, isImageFlag, imageFormat, headerLen, imageHeaderHex;
 
-        // New format: IV|Checksum|RSA_d|RSA_n|isImage|imageFormat|headerLen|imageHeader
+        // New format: IV|Checksum|RSA_encrypted_key|RSA_n|isImage|imageFormat|headerLen|imageHeader
         if (metadata.length >= 8) {
             ivHex = metadata[0];
             checksum = metadata[1];
-            rsaDStr = metadata[2];
-            rsaNStr = metadata[3];
+            encryptedKeyHex = metadata[2];
+            rsaN = metadata[3];
             isImageFlag = metadata[4] === 'true';
             imageFormat = metadata[5] || 'txt';
             headerLen = parseInt(metadata[6], 10) || 0;
             imageHeaderHex = metadata[7] || '';
-        // Backward compatibility
+        // Backward compatibility (old format with rsaDStr)
         } else if (metadata.length === 7) {
             ivHex = metadata[0];
             checksum = metadata[1];
-            rsaDStr = metadata[2];
-            rsaNStr = metadata[3];
-            isImageFlag = metadata[4] === 'true';
-            imageFormat = metadata[5] || 'txt';
-            imageHeaderHex = metadata[6] || '';
-            headerLen = imageHeaderHex && imageHeaderHex !== 'NA' ? Math.floor(imageHeaderHex.length / 2) : 0;
+            // If third element looks like hex pairs separated by |, it's new format
+            if (metadata[2].includes('|') && metadata[2].match(/^[0-9a-fA-F|]+$/)) {
+                encryptedKeyHex = metadata[2];
+                rsaN = metadata[3];
+                isImageFlag = metadata[4] === 'true';
+                imageFormat = metadata[5] || 'txt';
+                imageHeaderHex = metadata[6] || '';
+                headerLen = imageHeaderHex && imageHeaderHex !== 'NA' ? Math.floor(imageHeaderHex.length / 2) : 0;
+            } else {
+                // Old format, skip this (shouldn't happen with our new encryption)
+                throw new Error("❌ Format ciphertext tidak kompatibel!");
+            }
         } else {
             throw new Error("❌ Metadata tidak lengkap!");
+        }
+        
+        // HYBRID DECRYPTION: RSA verify key + CBC decrypt data
+        // Reconstruct RSA private key (same p, q)
+        let p = 61n, q = 53n;
+        let n = p * q;
+        let phi = (p - 1n) * (q - 1n);
+        let e = 17n;
+        let d = RSA.modInverse(e, phi);
+        
+        // Parse encrypted key (split by | and convert from hex)
+        let encryptedKeyParts = encryptedKeyHex.split('|');
+        let encryptedKeyArray = encryptedKeyParts.map(hex => BigInt('0x' + hex).toString());
+        
+        // RSA decrypt the key
+        let decryptedKeyArray = RSA.decrypt(encryptedKeyArray, { d: d, n: n });
+        let decryptedKeyStr = new TextDecoder().decode(decryptedKeyArray);
+        
+        // Verify key matches user input
+        if (decryptedKeyStr !== userKeyInput) {
+            throw new Error("❌ Kunci salah! RSA decryption tidak sesuai.");
         }
         
         // Convert IV from hex
         let ivBytes = UI.fromHex(ivHex);
         
-        // Create cipher dengan IV yang sudah stored
+        // Create cipher dengan IV yang sudah stored dan verified key
         let cipher = new BlockCipher(userKeyInput, ivBytes);
         
         // Decrypt ciphertext
