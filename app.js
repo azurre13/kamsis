@@ -10,8 +10,6 @@ const Base64Custom = {
     
     encode: function(bytes) {
         let result = '';
-        
-        // Process setiap 3 bytes jadi 4 Base64 chars
         for (let i = 0; i < bytes.length; i += 3) {
             let b1 = bytes[i];
             let b2 = i + 1 < bytes.length ? bytes[i + 1] : 0;
@@ -20,31 +18,25 @@ const Base64Custom = {
             let has2 = i + 1 < bytes.length;
             let has3 = i + 2 < bytes.length;
             
-            // Extract 6-bit chunks
             let c1 = (b1 >> 2) & 0x3F;
             let c2 = ((b1 & 0x03) << 4) | ((b2 >> 4) & 0x0F);
             let c3 = ((b2 & 0x0F) << 2) | ((b3 >> 6) & 0x03);
             let c4 = b3 & 0x3F;
             
-            // Encode to Base64
             result += this.alphabet[c1];
             result += this.alphabet[c2];
             result += has2 ? this.alphabet[c3] : '=';
             result += has3 ? this.alphabet[c4] : '=';
         }
-        
         return result;
     },
     
     decode: function(str) {
         let bytes = [];
-        
-        // Validasi length harus multiple of 4
         if (str.length % 4 !== 0) {
-            throw new Error("❌ Base64 decode gagal - length tidak valid (harus multiple of 4)!");
+            throw new Error("❌ Base64 decode gagal - length tidak valid (harus kelipatan 4)!");
         }
         
-        // Process 4 characters at a time
         for (let i = 0; i < str.length; i += 4) {
             let c1 = this.alphabet.indexOf(str[i]);
             let c2 = this.alphabet.indexOf(str[i + 1]);
@@ -55,24 +47,6 @@ const Base64Custom = {
                 throw new Error("❌ Base64 decode gagal - karakter tidak valid!");
             }
             
-            // Validasi padding
-            let isLastChunk = (i + 4 >= str.length);
-            
-            if (!isLastChunk) {
-                // Bukan chunk terakhir - TIDAK BOLEH ADA PADDING
-                if (str[i + 2] === '=' || str[i + 3] === '=') {
-                    throw new Error("❌ Base64 decode gagal - padding hanya boleh di akhir!");
-                }
-            } else {
-                // Chunk terakhir - cek pattern yang INVALID
-                // Valid: XXXX, XXX=, XX==
-                // Invalid: ??=X (padding di index 2 tapi tidak di index 3)
-                if (str[i + 2] === '=' && str[i + 3] !== '=') {
-                    throw new Error("❌ Base64 decode gagal - padding pattern salah!");
-                }
-            }
-            
-            // Reconstruct bytes
             let b1 = (c1 << 2) | (c2 >> 4);
             let b2 = ((c2 & 0x0F) << 4) | (c3 >> 2);
             let b3 = ((c3 & 0x03) << 6) | c4;
@@ -81,8 +55,17 @@ const Base64Custom = {
             if (str[i + 2] !== '=') bytes.push(b2);
             if (str[i + 3] !== '=') bytes.push(b3);
         }
-        
         return new Uint8Array(bytes);
+    },
+
+    // FUNGSI BARU: Untuk mengacak String Metadata
+    encodeStr: function(str) {
+        return this.encode(new TextEncoder().encode(str));
+    },
+    
+    // FUNGSI BARU: Untuk mengembalikan String Metadata
+    decodeStr: function(b64) {
+        return new TextDecoder().decode(this.decode(b64));
     }
 };
 
@@ -96,7 +79,7 @@ const Checksum = {
             hash = ((hash << 5) + hash) + bytes[i];
             hash = hash & hash;
         }
-        return Math.abs(hash).toString(16);
+        return Math.abs(hash).toString(36);
     }
 };
 
@@ -264,44 +247,6 @@ const UI = {
         }
     },
     
-    toHex: function(bytes) {
-        let hexStr = "";
-        for (let i = 0; i < bytes.length; i++) {
-            let hex = bytes[i].toString(16);
-            hexStr += (hex.length === 1 ? "0" : "") + hex;
-        }
-        return hexStr.toUpperCase();
-    },
-    
-    fromHex: function(hexStr) {
-        if (!hexStr || hexStr.trim().length === 0) {
-            throw new Error("Hex string kosong!");
-        }
-        
-        let cleaned = hexStr.replace(/[\s\-:]/g, '').toUpperCase();
-        
-        if (!/^[0-9A-F]*$/.test(cleaned)) {
-            let invalidChars = cleaned.replace(/[0-9A-F]/g, '').split('');
-            let unique = [...new Set(invalidChars)];
-            throw new Error(`❌ Hex berisi karakter tidak valid: ${unique.join(', ')}`);
-        }
-        
-        if (cleaned.length % 2 !== 0) {
-            throw new Error(`❌ Panjang hex GANJIL (${cleaned.length} chars)!`);
-        }
-        
-        let bytes = new Uint8Array(cleaned.length / 2);
-        for (let i = 0; i < cleaned.length; i += 2) {
-            let chunk = cleaned.substr(i, 2);
-            let byte = parseInt(chunk, 16);
-            if (isNaN(byte)) {
-                throw new Error(`❌ Gagal parse hex di posisi ${i/2}: ${chunk}`);
-            }
-            bytes[i / 2] = byte;
-        }
-        return bytes;
-    },
-    
     getImageFormat: function(filename) {
         let ext = filename.toLowerCase();
         if (ext.endsWith('.bmp')) return 'bmp';
@@ -449,47 +394,46 @@ function downloadDecResult() {
    TAB NAVIGATION & MODE SWITCHING
    ======================================== */
 
-// Tab switching
+let tabScrollPositions = { encryptSection: 0, decryptSection: 0 };
+
 document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         let tabName = btn.getAttribute('data-tab');
+        let newTabId = tabName + 'Section';
         
-        // Update tab buttons
+        let currentActiveTab = document.querySelector('.tab-content.active');
+        if (currentActiveTab) {
+            tabScrollPositions[currentActiveTab.id] = window.scrollY;
+        }
+        
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         
-        // Update tab content
         document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
-        document.getElementById(tabName + 'Section').classList.add('active');
+        document.getElementById(newTabId).classList.add('active');
+        
+        requestAnimationFrame(() => {
+            window.scrollTo(0, tabScrollPositions[newTabId]);
+        });
     });
 });
 
-// Encryption Mode Selection
 document.querySelectorAll('#encryptSection .seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         let mode = btn.getAttribute('data-mode');
-        
-        // Update button state
         document.querySelectorAll('#encryptSection .seg-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        
-        // Toggle input sections
         document.getElementById('encTextMode').style.display = mode === 'text' ? 'block' : 'none';
         document.getElementById('encTxtFileMode').style.display = mode === 'txt-file' ? 'block' : 'none';
         document.getElementById('encImageMode').style.display = mode === 'image' ? 'block' : 'none';
     });
 });
 
-// Decryption Mode Selection
 document.querySelectorAll('#decryptSection .seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         let mode = btn.getAttribute('data-dec-mode');
-        
-        // Update button state
         document.querySelectorAll('#decryptSection .seg-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        
-        // Toggle input sections
         document.getElementById('decPasteMode').style.display = mode === 'paste' ? 'block' : 'none';
         document.getElementById('decFileMode').style.display = mode === 'file' ? 'block' : 'none';
     });
@@ -518,33 +462,22 @@ document.getElementById('decKeyInput').addEventListener('input', e => {
 });
 
 /* ========================================
-   KEY VISIBILITY TOGGLE (EYE ICON)
+   KEY VISIBILITY TOGGLE & AUTO-HIDE
    ======================================== */
 
-// Encryption Key Toggle
 document.getElementById('encEyeToggle').addEventListener('click', e => {
     e.preventDefault();
-    let input = document.getElementById('encKeyInput');
-    let btn = document.getElementById('encEyeToggle');
-    let eyeOpen = btn.querySelector('.eye-open');
-    let eyeClosed = btn.querySelector('.eye-closed');
-    
-    if (input.type === 'password') {
-        input.type = 'text';
-        eyeOpen.style.display = 'none';
-        eyeClosed.style.display = 'block';
-    } else {
-        input.type = 'password';
-        eyeOpen.style.display = 'block';
-        eyeClosed.style.display = 'none';
-    }
+    togglePassword('encKeyInput', 'encEyeToggle');
 });
 
-// Decryption Key Toggle
 document.getElementById('decEyeToggle').addEventListener('click', e => {
     e.preventDefault();
-    let input = document.getElementById('decKeyInput');
-    let btn = document.getElementById('decEyeToggle');
+    togglePassword('decKeyInput', 'decEyeToggle');
+});
+
+function togglePassword(inputId, btnId) {
+    let input = document.getElementById(inputId);
+    let btn = document.getElementById(btnId);
     let eyeOpen = btn.querySelector('.eye-open');
     let eyeClosed = btn.querySelector('.eye-closed');
     
@@ -557,24 +490,15 @@ document.getElementById('decEyeToggle').addEventListener('click', e => {
         eyeOpen.style.display = 'block';
         eyeClosed.style.display = 'none';
     }
-});
+}
 
-// Auto-hide key when user clicks outside
 function setupAutoHideKey(inputId, btnId) {
     let input = document.getElementById(inputId);
     let btn = document.getElementById(btnId);
-    
     if (!input || !btn) return;
     
-    // Get the wrapper that contains both input and button
     let wrapper = input.closest('.key-input-wrapper');
-    
-    // Hide on blur (when focus leaves input)
-    input.addEventListener('blur', () => {
-        hideKeyInput(input, btn);
-    });
-    
-    // Also hide when clicking outside the wrapper
+    input.addEventListener('blur', () => hideKeyInput(input, btn));
     document.addEventListener('click', (e) => {
         if (wrapper && !wrapper.contains(e.target) && input.type === 'text') {
             hideKeyInput(input, btn);
@@ -594,7 +518,6 @@ function hideKeyInput(input, btn) {
     }
 }
 
-// Setup auto-hide for both encryption and decryption key inputs
 setupAutoHideKey('encKeyInput', 'encEyeToggle');
 setupAutoHideKey('decKeyInput', 'decEyeToggle');
 
@@ -605,51 +528,32 @@ setupAutoHideKey('decKeyInput', 'decEyeToggle');
 function setupDragDrop(dragAreaId, inputId, fileInfoId) {
     let dragArea = document.getElementById(dragAreaId);
     let fileInput = document.getElementById(inputId);
-    let fileInfo = document.getElementById(fileInfoId);
-
+    
     if (!dragArea) return;
 
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dragArea.addEventListener(eventName, preventDefaults, false);
+        dragArea.addEventListener(eventName, e => {
+            e.preventDefault();
+            e.stopPropagation();
+        }, false);
     });
 
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-
     ['dragenter', 'dragover'].forEach(eventName => {
-        dragArea.addEventListener(eventName, highlight, false);
+        dragArea.addEventListener(eventName, () => dragArea.classList.add('drag-over'), false);
     });
 
     ['dragleave', 'drop'].forEach(eventName => {
-        dragArea.addEventListener(eventName, unhighlight, false);
+        dragArea.addEventListener(eventName, () => dragArea.classList.remove('drag-over'), false);
     });
 
-    function highlight(e) {
-        dragArea.classList.add('drag-over');
-    }
-
-    function unhighlight(e) {
-        dragArea.classList.remove('drag-over');
-    }
-
-    dragArea.addEventListener('drop', handleDrop, false);
-
-    function handleDrop(e) {
-        let dt = e.dataTransfer;
-        let files = dt.files;
-        fileInput.files = files;
-        
-        // Trigger change event
-        let event = new Event('change', { bubbles: true });
-        fileInput.dispatchEvent(event);
-    }
+    dragArea.addEventListener('drop', e => {
+        fileInput.files = e.dataTransfer.files;
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }, false);
 
     dragArea.addEventListener('click', () => fileInput.click());
 }
 
-// Setup drag & drop areas
 setupDragDrop('encTxtDragArea', 'encTxtFileInput', 'encTxtFileInfo');
 setupDragDrop('encImageDragArea', 'encImageInput', 'encImageInfo');
 setupDragDrop('decFileDragArea', 'decHexFile', 'decFileInfo');
@@ -686,7 +590,6 @@ document.getElementById('encImageInput').addEventListener('change', e => {
         }
         let sizeKB = (file.size / 1024).toFixed(2);
         
-        // Read file and show preview
         let reader = new FileReader();
         reader.onload = function(evt) {
             let info = `✓ ${file.name} · ${sizeKB} KB · ${imageFormat.toUpperCase()}`;
@@ -737,14 +640,11 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
         
         if (encOutput) encOutput.style.display = 'none';
         if (encResultText) encResultText.value = '';
-        if (encOutput) {
-            encOutput.querySelectorAll('.error-notification, .success-notification').forEach(el => el.remove());
-        }
+        if (encOutput) encOutput.querySelectorAll('.error-notification, .success-notification').forEach(el => el.remove());
         
         let statusBox = document.getElementById('statusBox');
         if (statusBox) statusBox.style.display = 'none';
         
-        // Get mode from active segmented button
         let modeBtn = document.querySelector('#encryptSection .seg-btn.active');
         let mode = modeBtn ? modeBtn.getAttribute('data-mode') : 'text';
         
@@ -754,22 +654,20 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
         let cipher = new BlockCipher(keyStr);
         let keysRSA = RSA.generateKeys();
         
-        // HYBRID ENCRYPTION: RSA encrypt key + CBC encrypt data
-        // Convert key to bytes dan RSA encrypt
+        // RSA encrypt key 
         let keyBytes = new TextEncoder().encode(keyStr);
         let encryptedKeyArray = RSA.encrypt(keyBytes, keysRSA.pub);
-        let encryptedKeyHex = encryptedKeyArray.map(n => {
-            let hex = BigInt(n).toString(16).toUpperCase();  // Standardize ke UPPERCASE
-            return hex.length === 1 ? '0' + hex : hex;
-        }).join('-');
+        let encryptedKeyStr = encryptedKeyArray.map(n => n.toString()).join('-');
         
-        // Siapkan data untuk packing
-        let ivHex = UI.toHex(cipher.iv);
-        let rsaNStr = keysRSA.priv.n.toString();
-        let isImage = 'false';
-        let imageFormat = 'txt';
-        let imageHeaderHex = '';
-        let ciphertextHex = '';
+        // Encode SEMUA metadata ke Base64 agar wujud aslinya hilang (Alien Gibberish)
+        let ivB64 = Base64Custom.encode(cipher.iv);
+        let encryptedKeyB64 = Base64Custom.encodeStr(encryptedKeyStr);
+        let rsaNB64 = Base64Custom.encodeStr(keysRSA.priv.n.toString());
+        
+        let isImageB64 = Base64Custom.encodeStr('false');
+        let imageFormatB64 = Base64Custom.encodeStr('txt');
+        let headerB64 = Base64Custom.encodeStr('NA');
+        let cipherB64 = '';
 
         if (mode === 'text') {
             let txt = document.getElementById('encTextInput').value;
@@ -778,18 +676,18 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
             let plainBytes = new TextEncoder().encode(txt);
             let plainChecksum = Checksum.compute(plainBytes);
             let encBytes = cipher.process(plainBytes, true);
-            ciphertextHex = UI.toHex(encBytes);
             
-            let headerLen = '0';
-            let safeHeaderHex = 'NA';
-            let packString = `${ivHex}|${plainChecksum}|${encryptedKeyHex}|${rsaNStr}|${isImage}|${imageFormat}|${headerLen}|${safeHeaderHex}|||${ciphertextHex}`;
-            let packBytes = new TextEncoder().encode(packString);
-            let packB64 = Base64Custom.encode(packBytes);
+            cipherB64 = Base64Custom.encode(encBytes);
+            let checksumB64 = Base64Custom.encodeStr(plainChecksum);
+            let headerLenB64 = Base64Custom.encodeStr('0');
+            
+            // Format 100% Base64 dipisah titik
+            let packResult = `${ivB64}.${checksumB64}.${encryptedKeyB64}.${rsaNB64}.${isImageB64}.${imageFormatB64}.${headerLenB64}.${headerB64}.${cipherB64}`;
             
             document.getElementById('encOutput').style.display = 'block';
-            document.getElementById('encResultText').value = packB64;
-            document.getElementById('encOutputByteCount').textContent = packB64.length;
-            encryptionData.packResult = packB64;
+            document.getElementById('encResultText').value = packResult;
+            document.getElementById('encOutputByteCount').textContent = packResult.length;
+            encryptionData.packResult = packResult;
             
             UI.showMsg("✅ Enkripsi Text Sukses! Silakan copy atau download hasilnya.", false, 'enc');
 
@@ -805,18 +703,17 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
             
             let plainChecksum = Checksum.compute(plainBytes);
             let encBytes = cipher.process(plainBytes, true);
-            ciphertextHex = UI.toHex(encBytes);
             
-            let headerLen = '0';
-            let safeHeaderHex = 'NA';
-            let packString = `${ivHex}|${plainChecksum}|${encryptedKeyHex}|${rsaNStr}|${isImage}|txt|${headerLen}|${safeHeaderHex}|||${ciphertextHex}`;
-            let packBytes = new TextEncoder().encode(packString);
-            let packB64 = Base64Custom.encode(packBytes);
+            cipherB64 = Base64Custom.encode(encBytes);
+            let checksumB64 = Base64Custom.encodeStr(plainChecksum);
+            let headerLenB64 = Base64Custom.encodeStr('0');
+            
+            let packResult = `${ivB64}.${checksumB64}.${encryptedKeyB64}.${rsaNB64}.${isImageB64}.${imageFormatB64}.${headerLenB64}.${headerB64}.${cipherB64}`;
             
             document.getElementById('encOutput').style.display = 'block';
-            document.getElementById('encResultText').value = packB64;
-            document.getElementById('encOutputByteCount').textContent = packB64.length;
-            encryptionData.packResult = packB64;
+            document.getElementById('encResultText').value = packResult;
+            document.getElementById('encOutputByteCount').textContent = packResult.length;
+            encryptionData.packResult = packResult;
             
             document.getElementById('encTxtFileInput').value = '';
             document.getElementById('encTxtFileInfo').style.display = 'none';
@@ -838,21 +735,21 @@ document.getElementById('btnEncrypt').addEventListener('click', async () => {
             let { header, body } = UI.extractImageHeader(imageBytes, imgFormat);
             let bodyChecksum = Checksum.compute(body);
             let encBodyBytes = cipher.process(body, true);
-            ciphertextHex = UI.toHex(encBodyBytes);
             
-            imageHeaderHex = UI.toHex(header);
-            isImage = 'true';
-            imageFormat = imgFormat;
+            cipherB64 = Base64Custom.encode(encBodyBytes);
+            headerB64 = Base64Custom.encode(header);
             
-            let headerLen = (header.length).toString();
-            let packString = `${ivHex}|${bodyChecksum}|${encryptedKeyHex}|${rsaNStr}|${isImage}|${imageFormat}|${headerLen}|${imageHeaderHex}|||${ciphertextHex}`;
-            let packBytes = new TextEncoder().encode(packString);
-            let packB64 = Base64Custom.encode(packBytes);
+            isImageB64 = Base64Custom.encodeStr('true');
+            imageFormatB64 = Base64Custom.encodeStr(imgFormat);
+            let checksumB64 = Base64Custom.encodeStr(bodyChecksum);
+            let headerLenB64 = Base64Custom.encodeStr((header.length).toString());
+            
+            let packResult = `${ivB64}.${checksumB64}.${encryptedKeyB64}.${rsaNB64}.${isImageB64}.${imageFormatB64}.${headerLenB64}.${headerB64}.${cipherB64}`;
             
             document.getElementById('encOutput').style.display = 'block';
-            document.getElementById('encResultText').value = packB64;
-            document.getElementById('encOutputByteCount').textContent = packB64.length;
-            encryptionData.packResult = packB64;
+            document.getElementById('encResultText').value = packResult;
+            document.getElementById('encOutputByteCount').textContent = packResult.length;
+            encryptionData.packResult = packResult;
             
             document.getElementById('encImageInput').value = '';
             document.getElementById('encImageInfo').style.display = 'none';
@@ -879,9 +776,7 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
         if (copyDecBtn) copyDecBtn.style.display = 'none';
         if (decImagePreview) decImagePreview.style.display = 'none';
         if (decTextOutput) decTextOutput.style.display = 'none';
-        if (decOutput) {
-            decOutput.querySelectorAll('.error-notification, .success-notification').forEach(el => el.remove());
-        }
+        if (decOutput) decOutput.querySelectorAll('.error-notification, .success-notification').forEach(el => el.remove());
         
         let statusBox = document.getElementById('statusBox');
         if (statusBox) statusBox.style.display = 'none';
@@ -891,91 +786,71 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
             throw new Error("🔑 Kunci Simetrik wajib 8 karakter!");
         }
         
-        // Get mode from active segmented button
         let modeBtn = document.querySelector('#decryptSection .seg-btn.active');
         let decMode = modeBtn ? modeBtn.getAttribute('data-dec-mode') : 'paste';
-        let packB64Input = '';
+        let packInput = '';
         
         if (decMode === 'paste') {
-            packB64Input = document.getElementById('decTextInput').value;
-            if (!packB64Input) throw new Error("📝 Teks ciphertext kosong!");
+            packInput = document.getElementById('decTextInput').value;
+            if (!packInput) throw new Error("📝 Teks ciphertext kosong!");
         } else {
-            let hexFile = document.getElementById('decHexFile').files[0];
-            if (!hexFile) throw new Error("📁 Harap upload file Hasil_Enkripsi.txt!");
-            packB64Input = await hexFile.text();
-            if (!packB64Input) throw new Error("📁 File kosong!");
+            let fileInput = document.getElementById('decHexFile').files[0];
+            if (!fileInput) throw new Error("📁 Harap upload file Hasil_Enkripsi.txt!");
+            packInput = await fileInput.text();
+            if (!packInput) throw new Error("📁 File kosong!");
         }
         
-        // Decode Base64 (trim untuk handle trailing newline dari file)
-        let packBytes = Base64Custom.decode(packB64Input.trim());
-        let packString = new TextDecoder().decode(packBytes);
-        
-        // Parse metadata safely from the LAST separator
-        let sepIndex = packString.lastIndexOf('|||');
-        if (sepIndex === -1) throw new Error("❌ Format ciphertext tidak valid!");
+        // Membersihkan spasi/newline
+        packInput = packInput.replace(/\s/g, '');
+        let metadata = packInput.split('.');
 
-        let metadataPart = packString.slice(0, sepIndex);
-        let ciphertextHex = packString.slice(sepIndex + 3);
-        let metadata = metadataPart.split('|');
-
-        // Validasi metadata length
-        if (metadata.length < 8) {
-            throw new Error(`❌ Metadata tidak lengkap! Expected >= 8, got ${metadata.length}`);
+        if (metadata.length < 9) {
+            throw new Error(`❌ Format ciphertext tidak valid atau metadata kurang!`);
         }
         
-        let ivHex, checksum, encryptedKeyHex, rsaN, isImageFlag, imageFormat, headerLen, imageHeaderHex;
-
-        // New format: IV|Checksum|RSA_encrypted_key|RSA_n|isImage|imageFormat|headerLen|imageHeader
-        if (metadata.length >= 8) {
-            ivHex = metadata[0];
-            checksum = metadata[1];
-            encryptedKeyHex = metadata[2];
-            rsaN = metadata[3];
-            isImageFlag = metadata[4] === 'true';
-            imageFormat = metadata[5] || 'txt';
-            headerLen = parseInt(metadata[6], 10) || 0;
-            imageHeaderHex = metadata[7] || '';
-            
-            // Validasi format
-            if (!ivHex || !checksum || !encryptedKeyHex || !rsaN) {
-                throw new Error("❌ Metadata element kosong atau tidak valid!");
-            }
-        } else {
-            throw new Error(`❌ Format metadata tidak sesuai! Expected >= 8 elements, got ${metadata.length}`);
+        let ivB64 = metadata[0];
+        
+        // Dekode Metadata yang sudah di-Base64-kan kembali menjadi String
+        let checksum = Base64Custom.decodeStr(metadata[1]);
+        let encryptedKeyStr = Base64Custom.decodeStr(metadata[2]);
+        let rsaN = Base64Custom.decodeStr(metadata[3]);
+        let isImageFlag = Base64Custom.decodeStr(metadata[4]) === 'true';
+        let imageFormat = Base64Custom.decodeStr(metadata[5]);
+        let headerLen = parseInt(Base64Custom.decodeStr(metadata[6]), 10);
+        
+        let headerB64 = metadata[7];
+        let cipherB64 = metadata[8];
+        
+        if (!ivB64 || !checksum || !encryptedKeyStr || !rsaN || !cipherB64) {
+            throw new Error("❌ Metadata element kosong atau tidak valid!");
         }
         
-        // HYBRID DECRYPTION: RSA verify key + CBC decrypt data
-        // Reconstruct RSA private key (same p, q)
+        // HYBRID DECRYPTION
         let p = 61n, q = 53n;
         let n = p * q;
         let phi = (p - 1n) * (q - 1n);
         let e = 17n;
         let d = RSA.modInverse(e, phi);
         
-        // Parse encrypted key (split by - and convert from hex)
-        let encryptedKeyParts = encryptedKeyHex.split('-'); // SUDAH DIPERBAIKI: Menggunakan '-'
-        let encryptedKeyArray = encryptedKeyParts.map(hex => BigInt('0x' + hex).toString());
-        
         // RSA decrypt the key
-        let decryptedKeyArray = RSA.decrypt(encryptedKeyArray, { d: d, n: n });
+        let encryptedKeyParts = encryptedKeyStr.split('-'); 
+        let decryptedKeyArray = RSA.decrypt(encryptedKeyParts, { d: d, n: n });
         let decryptedKeyStr = new TextDecoder().decode(decryptedKeyArray);
         
-        // Verify key matches user input
+        // Verifikasi Kunci
         if (decryptedKeyStr !== userKeyInput) {
             throw new Error("❌ Kunci salah! RSA decryption tidak sesuai.");
         }
         
-        // Convert IV from hex
-        let ivBytes = UI.fromHex(ivHex);
-        
-        // Create cipher dengan IV yang sudah stored dan verified key
+        // Ekstrak IV dan inisialisasi cipher
+        let ivBytes = Base64Custom.decode(ivB64);
         let cipher = new BlockCipher(userKeyInput, ivBytes);
         
         // Decrypt ciphertext
-        let ciphertextBytes = UI.fromHex(ciphertextHex);
+        let ciphertextBytes = Base64Custom.decode(cipherB64);
         let decBody = cipher.process(ciphertextBytes, false);
         
-        // Verify checksum
+        // Verifikasi Checksum
         let decryptedChecksum = Checksum.compute(decBody);
         if (decryptedChecksum !== checksum) {
             throw new Error("❌ Integritas data rusak atau kunci salah!");
@@ -983,9 +858,9 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
         
         document.getElementById('decOutput').style.display = 'block';
         
-        if (isImageFlag && headerLen > 0 && imageHeaderHex) {
+        if (isImageFlag && headerLen > 0) {
             // Image reconstruction
-            let headerBytes = UI.fromHex(imageHeaderHex);
+            let headerBytes = Base64Custom.decode(headerB64);
             let reconstructedImage = new Uint8Array(headerBytes.length + decBody.length);
             reconstructedImage.set(headerBytes, 0);
             reconstructedImage.set(decBody, headerBytes.length);
@@ -996,7 +871,6 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
             decryptionData.isImage = true;
             decryptionData.resultBytes = reconstructedImage;
             
-            // Show image preview
             if (decImagePreview) {
                 let previewImage = document.getElementById('previewImage');
                 let blob = new Blob([reconstructedImage], { type: {
