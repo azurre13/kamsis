@@ -1014,7 +1014,6 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
             if (copyDecBtn) copyDecBtn.style.display = 'none';
             if (downloadDecBtn) {
                 downloadDecBtn.style.display = 'block';
-                downloadDecBtn.textContent = `⬇️ Download ${imageFormat.toUpperCase()}`;
             }
             
             UI.showMsg(`✅ Dekripsi Gambar (${imageFormat.toUpperCase()}) Sukses! ✓ Kunci ✓ Checksum ✓ Magic Bytes`, false, 'dec');
@@ -1035,7 +1034,6 @@ document.getElementById('btnDecrypt').addEventListener('click', async () => {
             if (copyDecBtn) copyDecBtn.style.display = 'block';
             if (downloadDecBtn) {
                 downloadDecBtn.style.display = 'block';
-                downloadDecBtn.textContent = '⬇️ Download TXT';
             }
             
             UI.showMsg("✅ Dekripsi Sukses! ✓ Kunci ✓ Checksum ✓ Integritas", false, 'dec');
