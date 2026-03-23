@@ -559,23 +559,39 @@ document.getElementById('decEyeToggle').addEventListener('click', e => {
     }
 });
 
-// Auto-hide key when user clicks outside or blurs away
+// Auto-hide key when user clicks outside
 function setupAutoHideKey(inputId, btnId) {
     let input = document.getElementById(inputId);
     let btn = document.getElementById(btnId);
     
     if (!input || !btn) return;
     
+    // Get the wrapper that contains both input and button
+    let wrapper = input.closest('.key-input-wrapper');
+    
+    // Hide on blur (when focus leaves input)
     input.addEventListener('blur', () => {
-        // Reset to hidden (password) mode on blur
-        if (input.type === 'text') {
-            input.type = 'password';
-            let eyeOpen = btn.querySelector('.eye-open');
-            let eyeClosed = btn.querySelector('.eye-closed');
+        hideKeyInput(input, btn);
+    });
+    
+    // Also hide when clicking outside the wrapper
+    document.addEventListener('click', (e) => {
+        if (wrapper && !wrapper.contains(e.target) && input.type === 'text') {
+            hideKeyInput(input, btn);
+        }
+    });
+}
+
+function hideKeyInput(input, btn) {
+    if (input.type === 'text') {
+        input.type = 'password';
+        let eyeOpen = btn.querySelector('.eye-open');
+        let eyeClosed = btn.querySelector('.eye-closed');
+        if (eyeOpen && eyeClosed) {
             eyeOpen.style.display = 'block';
             eyeClosed.style.display = 'none';
         }
-    });
+    }
 }
 
 // Setup auto-hide for both encryption and decryption key inputs
