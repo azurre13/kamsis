@@ -559,6 +559,29 @@ document.getElementById('decEyeToggle').addEventListener('click', e => {
     }
 });
 
+// Auto-hide key when user clicks outside or blurs away
+function setupAutoHideKey(inputId, btnId) {
+    let input = document.getElementById(inputId);
+    let btn = document.getElementById(btnId);
+    
+    if (!input || !btn) return;
+    
+    input.addEventListener('blur', () => {
+        // Reset to hidden (password) mode on blur
+        if (input.type === 'text') {
+            input.type = 'password';
+            let eyeOpen = btn.querySelector('.eye-open');
+            let eyeClosed = btn.querySelector('.eye-closed');
+            eyeOpen.style.display = 'block';
+            eyeClosed.style.display = 'none';
+        }
+    });
+}
+
+// Setup auto-hide for both encryption and decryption key inputs
+setupAutoHideKey('encKeyInput', 'encEyeToggle');
+setupAutoHideKey('decKeyInput', 'decEyeToggle');
+
 /* ========================================
    DRAG & DROP SUPPORT
    ======================================== */

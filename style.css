@@ -408,7 +408,7 @@ body::before {
     transform: translateY(-50%);
     background: transparent;
     border: none;
-    color: #ffffff;
+    color: var(--accent-blue);
     cursor: pointer;
     padding: 6px 8px;
     display: flex;
@@ -420,8 +420,8 @@ body::before {
 }
 
 .eye-toggle:hover {
-    color: #e2e8f0;
-    background: rgba(255, 255, 255, 0.1);
+    color: var(--accent-blue-dark);
+    background: rgba(59, 130, 246, 0.15);
 }
 
 .eye-toggle:active {
