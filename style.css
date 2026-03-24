@@ -653,6 +653,26 @@ body::before {
     line-height: 1.4;
     border-radius: 12px;
     resize: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-blue) rgba(13, 27, 46, 0.5);
+}
+
+.output-wrapper textarea::-webkit-scrollbar {
+    width: 10px;
+}
+
+.output-wrapper textarea::-webkit-scrollbar-track {
+    background: rgba(13, 27, 46, 0.5);
+    border-radius: 12px;
+}
+
+.output-wrapper textarea::-webkit-scrollbar-thumb {
+    background: var(--accent-blue);
+    border-radius: 12px;
+}
+
+.output-wrapper textarea::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-blue-dark);
 }
 
 .output-counter {
