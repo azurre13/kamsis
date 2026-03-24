@@ -69,9 +69,9 @@ const Base64Custom = {
     }
 };
 
-/* =====================================================
+/* 
    0. CHECKSUM FUNCTION (INTEGRITY CHECK)
-   ===================================================== */
+    */
 const Checksum = {
     compute: function(bytes) {
         let hash = 5381;
